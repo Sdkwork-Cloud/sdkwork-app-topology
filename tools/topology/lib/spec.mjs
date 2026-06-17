@@ -2,21 +2,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { normalizeText } from './env-file.mjs';
+import { validateTopologySpecV2 } from './spec-v2.mjs';
 
 export const DEFAULT_TOPOLOGIES = ['standalone', 'cloud'];
 export const DEFAULT_PROFILES = ['development', 'production'];
 
-export function loadTopologySpec(specPath) {
-  const resolved = path.resolve(specPath);
-  if (!fs.existsSync(resolved)) {
-    throw new Error(`topology spec not found: ${resolved}`);
-  }
-  const spec = JSON.parse(fs.readFileSync(resolved, 'utf8'));
-  validateTopologySpec(spec, resolved);
-  return spec;
-}
-
-export function validateTopologySpec(spec, specPath = 'topology.spec.json') {
+export function validateTopologySpecV1(spec, specPath = 'topology.spec.json') {
   if (!spec || typeof spec !== 'object') {
     throw new Error(`${specPath} must be a JSON object`);
   }
@@ -56,6 +47,23 @@ export function validateTopologySpec(spec, specPath = 'topology.spec.json') {
   }
 
   return spec;
+}
+
+export function loadTopologySpec(specPath) {
+  const resolved = path.resolve(specPath);
+  if (!fs.existsSync(resolved)) {
+    throw new Error(`topology spec not found: ${resolved}`);
+  }
+  const spec = JSON.parse(fs.readFileSync(resolved, 'utf8'));
+  validateTopologySpec(spec, resolved);
+  return spec;
+}
+
+export function validateTopologySpec(spec, specPath = 'topology.spec.json') {
+  if (spec?.schemaVersion === 2) {
+    return validateTopologySpecV2(spec, specPath);
+  }
+  return validateTopologySpecV1(spec, specPath);
 }
 
 export function listPackageTargets(spec) {

@@ -1,7 +1,12 @@
 # SDKWork App Topology Standard
 
-Version: 1.0  
+Version: 2.0 (platform); framework library still supports v1 Drive specs  
 Scope: cross-application deployment topology for SDKWork apps with PC/H5/desktop surfaces
+
+**Platform naming authority:** `../../sdkwork-specs/APP_RUNTIME_TOPOLOGY_NAMING.md`  
+**Platform connectivity standard:** `../../sdkwork-specs/APP_RUNTIME_TOPOLOGY_SPEC.md`
+
+This document describes the **framework package** layout. Vocabulary for new applications uses v2 (`hosting`, `serviceLayout`, `connectivityPlane`). Drive continues on v1 (`topology`, `profile`) until migrated.
 
 ## 1. Purpose
 

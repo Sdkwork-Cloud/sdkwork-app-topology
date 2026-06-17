@@ -21,9 +21,9 @@ test('loads and validates sdkwork-drive example spec', () => {
 });
 
 test('createTopologyRuntime loads standalone development profile keys', () => {
-  const spec = loadTopologySpec(path.join(frameworkRoot, 'examples/sdkwork-drive/topology.spec.json'));
-  const driveRoot = path.resolve(frameworkRoot, '../sdkwork-drive');
-  const runtime = createTopologyRuntime(spec, driveRoot);
+  const exampleRoot = path.join(frameworkRoot, 'examples/sdkwork-drive');
+  const spec = loadTopologySpec(path.join(exampleRoot, 'topology.spec.json'));
+  const runtime = createTopologyRuntime(spec, exampleRoot);
   const profile = runtime.loadTopologyProfile('standalone', 'development');
   assert.equal(profile.SDKWORK_DRIVE_TOPOLOGY, 'standalone');
   assert.equal(profile.VITE_DRIVE_PC_API_GATEWAY_BASE_URL, 'http://127.0.0.1:3900');
@@ -48,5 +48,36 @@ test('resolveGatewayBind respects standalone and cloud binds', () => {
   assert.equal(
     runtime.resolveGatewayBind({ SDKWORK_API_GATEWAY_BIND: '127.0.0.1:3920' }, 'cloud'),
     '127.0.0.1:3920',
+  );
+});
+
+test('loads sdkwork-drive v2 topology spec and profile', () => {
+  const driveRoot = path.resolve(frameworkRoot, '../sdkwork-drive');
+  const spec = loadTopologySpec(path.join(driveRoot, 'specs/topology.spec.json'));
+  assert.equal(spec.schemaVersion, 2);
+  assert.equal(spec.archetype, 'application-http-gateway');
+  const runtime = createTopologyRuntime(spec, driveRoot);
+  const profile = runtime.loadProfile('self-hosted.split-services.development');
+  assert.equal(profile.SDKWORK_DRIVE_HOSTING, 'self-hosted');
+  assert.equal(profile.VITE_DRIVE_PC_PLATFORM_API_GATEWAY_HTTP_URL, 'http://127.0.0.1:3900');
+});
+
+test('loads sdkwork-im v2 topology spec and resolves surfaces', () => {
+  const imRoot = path.resolve(frameworkRoot, '../sdkwork-im');
+  const spec = loadTopologySpec(path.join(imRoot, 'specs/topology.spec.json'));
+  assert.equal(spec.archetype, 'realtime-application-platform');
+  const runtime = createTopologyRuntime(spec, imRoot);
+  const profile = runtime.loadProfile('self-hosted.split-services.development');
+  assert.equal(
+    runtime.resolveSurfaceHttpUrl(profile, 'application.public-ingress'),
+    'http://127.0.0.1:18079',
+  );
+  assert.equal(
+    runtime.resolveSurfaceHttpUrl(profile, 'platform.api-gateway'),
+    'http://127.0.0.1:3900',
+  );
+  assert.equal(
+    runtime.resolveSurfaceWebsocketOrigin(profile, 'application.public-ingress'),
+    'ws://127.0.0.1:18079',
   );
 });

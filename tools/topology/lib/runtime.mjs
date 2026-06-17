@@ -3,6 +3,7 @@ import path from 'node:path';
 import { createGatewayHelpers } from './gateway.mjs';
 import { createIamDatabaseHelpers } from './iam-database.mjs';
 import { loadEnvFile, mergeRuntimeEnv, normalizeText } from './env-file.mjs';
+import { createTopologyRuntimeV2 } from './runtime-v2.mjs';
 import {
   DEFAULT_PROFILES,
   DEFAULT_TOPOLOGIES,
@@ -13,7 +14,7 @@ import {
   validateTopologySpec,
 } from './spec.mjs';
 
-export function createTopologyRuntime(spec, repoRoot) {
+function createTopologyRuntimeV1(spec, repoRoot) {
   const topologies = spec.vocabulary?.topology?.allowed ?? DEFAULT_TOPOLOGIES;
   const profiles = spec.vocabulary?.profile?.allowed ?? DEFAULT_PROFILES;
   const envKeys = spec.envKeys ?? {};
@@ -72,6 +73,7 @@ export function createTopologyRuntime(spec, repoRoot) {
   return {
     spec,
     repoRoot,
+    schemaVersion: 1,
     topologies,
     profiles,
     envKeys,
@@ -108,6 +110,13 @@ export function createTopologyRuntime(spec, repoRoot) {
   };
 }
 
+export function createTopologyRuntime(spec, repoRoot) {
+  if (spec.schemaVersion === 2) {
+    return createTopologyRuntimeV2(spec, repoRoot);
+  }
+  return createTopologyRuntimeV1(spec, repoRoot);
+}
+
 export {
   loadTopologySpec,
   validateTopologySpec,
@@ -118,3 +127,6 @@ export {
   mergeRuntimeEnv,
   normalizeText,
 };
+
+export { buildProfileId, parseProfileId } from './profile-id.mjs';
+export { waitForHttpHealthy, isHttpHealthy, isTcpPortOpen } from './health.mjs';
