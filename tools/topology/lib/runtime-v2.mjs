@@ -21,25 +21,36 @@ function appEnvPrefix(appId) {
 }
 
 export function createTopologyRuntimeV2(spec, repoRoot) {
-  const hostingValues = spec.vocabulary?.hosting?.allowed ?? ['self-hosted', 'cloud-hosted'];
+  const usesDeploymentProfileVocabulary = Array.isArray(spec.vocabulary?.deploymentProfile?.allowed);
+  const deploymentProfileValues =
+    spec.vocabulary?.deploymentProfile?.allowed
+    ?? spec.vocabulary?.hosting?.allowed
+    ?? ['standalone', 'cloud'];
   const serviceLayoutValues = spec.vocabulary?.serviceLayout?.allowed ?? ['unified-process', 'split-services'];
   const environmentValues = spec.vocabulary?.environment?.allowed ?? ['development', 'production'];
   const envKeys = spec.envKeys ?? {};
   const prefix = appEnvPrefix(spec.appId);
-  const hostingKey = envKeys.hosting ?? `SDKWORK_${prefix}_HOSTING`;
+  const deploymentProfileKey =
+    envKeys.deploymentProfile ?? envKeys.hosting ?? `SDKWORK_${prefix}_DEPLOYMENT_PROFILE`;
   const serviceLayoutKey = envKeys.serviceLayout ?? `SDKWORK_${prefix}_SERVICE_LAYOUT`;
   const environmentKey = envKeys.environment ?? `SDKWORK_${prefix}_ENVIRONMENT`;
   const profileIdKey = envKeys.profileId ?? `SDKWORK_${prefix}_PROFILE_ID`;
-  const clientHostingKey = envKeys.clientHosting ?? envKeys.clientTopology ?? `VITE_${prefix}_HOSTING`;
+  const clientDeploymentProfileKey =
+    envKeys.clientDeploymentProfile
+    ?? envKeys.clientHosting
+    ?? envKeys.clientTopology
+    ?? `VITE_${prefix}_DEPLOYMENT_PROFILE`;
   const profileIds = Object.keys(spec.profileFiles ?? {});
 
-  function assertHosting(value) {
+  function assertDeploymentProfile(value) {
     const normalized = normalizeText(value);
-    if (!normalized || !hostingValues.includes(normalized)) {
-      throw new Error(`hosting must be one of: ${hostingValues.join(', ')}`);
+    if (!normalized || !deploymentProfileValues.includes(normalized)) {
+      throw new Error(`deploymentProfile must be one of: ${deploymentProfileValues.join(', ')}`);
     }
     return normalized;
   }
+
+  const assertHosting = assertDeploymentProfile;
 
   function assertServiceLayout(value) {
     const normalized = normalizeText(value);
@@ -88,13 +99,13 @@ export function createTopologyRuntimeV2(spec, repoRoot) {
   }
 
   function applyProfileEnv(profileId, layers = []) {
-    const { hosting, serviceLayout, environment } = parseProfileId(assertProfileId(profileId));
+    const { deploymentProfile, serviceLayout, environment } = parseProfileId(assertProfileId(profileId));
     return mergeRuntimeEnv(...layers, {
-      [hostingKey]: hosting,
+      [deploymentProfileKey]: deploymentProfile,
       [serviceLayoutKey]: serviceLayout,
       [environmentKey]: environment,
       [profileIdKey]: profileId,
-      [clientHostingKey]: hosting,
+      [clientDeploymentProfileKey]: deploymentProfile,
     });
   }
 
@@ -107,7 +118,7 @@ export function createTopologyRuntimeV2(spec, repoRoot) {
       if (normalized === 'cloud-hosted' || normalized === 'cloud') {
         return 'cloud';
       }
-      throw new Error(`hosting must be one of: ${hostingValues.join(', ')}`);
+      throw new Error(`deploymentProfile must be one of: ${deploymentProfileValues.join(', ')}`);
     },
     assertProfile(environment) {
       return assertEnvironment(environment);
@@ -141,20 +152,28 @@ export function createTopologyRuntimeV2(spec, repoRoot) {
     legacyTopologyBridge,
   );
 
-  function resolveGatewayBind(env, hosting) {
-    const normalizedHosting = assertHosting(hosting);
-    if (normalizedHosting === 'self-hosted') {
+  function toGatewayTopology(deploymentProfile) {
+    const normalized = normalizeText(deploymentProfile);
+    if (normalized === 'self-hosted' || normalized === 'standalone') {
+      return 'standalone';
+    }
+    return 'cloud';
+  }
+
+  function resolveGatewayBind(env, deploymentProfile) {
+    const normalizedDeploymentProfile = assertDeploymentProfile(deploymentProfile);
+    if (toGatewayTopology(normalizedDeploymentProfile) === 'standalone') {
       const applicationBind = surfaces.resolveSurfaceBind(env, 'application.public-ingress');
       if (applicationBind) {
         return applicationBind;
       }
     }
-    return gateway.resolveGatewayBind(env, normalizedHosting === 'self-hosted' ? 'standalone' : 'cloud');
+    return gateway.resolveGatewayBind(env, toGatewayTopology(normalizedDeploymentProfile));
   }
 
-  function resolveGatewayBaseUrl(env, hosting) {
-    const normalizedHosting = assertHosting(hosting);
-    if (normalizedHosting === 'self-hosted') {
+  function resolveGatewayBaseUrl(env, deploymentProfile) {
+    const normalizedDeploymentProfile = assertDeploymentProfile(deploymentProfile);
+    if (toGatewayTopology(normalizedDeploymentProfile) === 'standalone') {
       const applicationUrl = surfaces.resolveSurfaceHttpUrl(env, 'application.public-ingress');
       if (applicationUrl) {
         return applicationUrl;
@@ -166,7 +185,7 @@ export function createTopologyRuntimeV2(spec, repoRoot) {
     if (platformUrl) {
       return platformUrl;
     }
-    return gateway.resolveGatewayBaseUrl(env, normalizedHosting === 'self-hosted' ? 'standalone' : 'cloud');
+    return gateway.resolveGatewayBaseUrl(env, toGatewayTopology(normalizedDeploymentProfile));
   }
 
   const iam = createIamDatabaseHelpers(spec);
@@ -176,28 +195,44 @@ export function createTopologyRuntimeV2(spec, repoRoot) {
     repoRoot,
     schemaVersion: 2,
     profileIds,
-    hostingValues,
+    deploymentProfileValues,
+    hostingValues: deploymentProfileValues,
     serviceLayoutValues,
     environmentValues,
     envKeys,
-    hostingKey,
+    deploymentProfileKey,
+    hostingKey: deploymentProfileKey,
     serviceLayoutKey,
     environmentKey,
     profileIdKey,
-    clientHostingKey,
+    clientDeploymentProfileKey,
+    clientHostingKey: clientDeploymentProfileKey,
     defaults: {
       developmentProfileId: spec.defaults?.developmentProfileId
-        ?? buildProfileId('self-hosted', 'split-services', 'development'),
+        ?? buildProfileId(
+          usesDeploymentProfileVocabulary ? 'standalone' : 'self-hosted',
+          usesDeploymentProfileVocabulary ? 'unified-process' : 'split-services',
+          'development',
+        ),
       productionProfileId: spec.defaults?.productionProfileId
-        ?? buildProfileId('cloud-hosted', 'split-services', 'production'),
+        ?? buildProfileId(
+          usesDeploymentProfileVocabulary ? 'cloud' : 'cloud-hosted',
+          'split-services',
+          'production',
+        ),
       desktopBuildProfileId: spec.defaults?.desktopBuildProfileId
         ?? spec.defaults?.productionProfileId
-        ?? buildProfileId('cloud-hosted', 'split-services', 'production'),
+        ?? buildProfileId(
+          usesDeploymentProfileVocabulary ? 'standalone' : 'cloud-hosted',
+          usesDeploymentProfileVocabulary ? 'unified-process' : 'split-services',
+          'production',
+        ),
       gatewayBind: spec.defaults?.gatewayBind ?? '127.0.0.1:3900',
     },
     buildProfileId,
     parseProfileId,
     listProfileIds: () => (profileIds.length > 0 ? profileIds : listProfileIdsFromVocabulary(spec)),
+    assertDeploymentProfile,
     assertHosting,
     assertServiceLayout,
     assertEnvironment,

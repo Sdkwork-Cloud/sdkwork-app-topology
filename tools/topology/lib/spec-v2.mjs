@@ -30,11 +30,14 @@ export function validateTopologySpecV2(spec, specPath = 'topology.spec.json') {
     throw new Error(`${specPath} archetype must be one of: ${ARCHETYPES.join(', ')}`);
   }
 
-  const hosting = spec.vocabulary?.hosting?.allowed;
+  const deploymentProfile =
+    spec.vocabulary?.deploymentProfile?.allowed ?? spec.vocabulary?.hosting?.allowed;
   const serviceLayout = spec.vocabulary?.serviceLayout?.allowed;
   const environment = spec.vocabulary?.environment?.allowed;
-  if (!Array.isArray(hosting) || hosting.length === 0) {
-    throw new Error(`${specPath} vocabulary.hosting.allowed must be a non-empty array`);
+  if (!Array.isArray(deploymentProfile) || deploymentProfile.length === 0) {
+    throw new Error(
+      `${specPath} vocabulary.deploymentProfile.allowed must be a non-empty array`,
+    );
   }
   if (!Array.isArray(serviceLayout) || serviceLayout.length === 0) {
     throw new Error(`${specPath} vocabulary.serviceLayout.allowed must be a non-empty array`);
