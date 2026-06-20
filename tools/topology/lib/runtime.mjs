@@ -95,10 +95,7 @@ function createTopologyRuntimeV1(spec, repoRoot) {
     listPackageTargetsByProfile: (profile) => listPackageTargetsByProfile(spec, profile),
     findPackageTarget: (targetId) => findPackageTarget(spec, targetId),
     ...gateway,
-    resolveIamDevEnv: (env = process.env, options = {}) => iam.resolveIamDevEnv(env, repoRoot, {
-      iamDefaults: spec.iamDevDefaults,
-      ...options,
-    }),
+    resolveIamDevEnv: (env = process.env, options = {}) => iam.resolveIamDevEnv(env, repoRoot, options),
     resolveIamDatabaseEnv: iam.resolveIamDatabaseEnv,
     describeIamDatabaseTarget: iam.describeIamDatabaseTarget,
     assertPostgresReachableForIam: (env, options = {}) => iam.assertPostgresReachableForIam(env, {

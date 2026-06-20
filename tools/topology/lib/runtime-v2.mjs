@@ -257,10 +257,7 @@ export function createTopologyRuntimeV2(spec, repoRoot) {
     resolveStandaloneGatewayConfigPath: (env) => gateway.resolveStandaloneGatewayConfigPath(env, repoRoot),
     resolveCloudGatewayConfigPath: (env, profile = 'development') =>
       gateway.resolveCloudGatewayConfigPath(env, profile, repoRoot),
-    resolveIamDevEnv: (env = process.env, options = {}) => iam.resolveIamDevEnv(env, repoRoot, {
-      iamDefaults: spec.iamDevDefaults,
-      ...options,
-    }),
+    resolveIamDevEnv: (env = process.env, options = {}) => iam.resolveIamDevEnv(env, repoRoot, options),
     resolveIamDatabaseEnv: iam.resolveIamDatabaseEnv,
     describeIamDatabaseTarget: iam.describeIamDatabaseTarget,
     assertPostgresReachableForIam: (env, options = {}) => iam.assertPostgresReachableForIam(env, {

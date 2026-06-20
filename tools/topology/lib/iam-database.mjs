@@ -1,47 +1,34 @@
 import { loadEnvFile, normalizeText } from './env-file.mjs';
 import { isTcpPortReachable } from './postgres.mjs';
-
-function appendQueryParam(params, name, value) {
-  const normalized = String(value ?? '').trim();
-  if (normalized) {
-    params.set(name, normalized);
-  }
-}
-
-function encodePostgresPath(databaseName) {
-  return encodeURIComponent(databaseName).replaceAll('%2F', '/');
-}
-
-function buildPostgresDatabaseUrl({
-  host,
-  port,
-  database,
-  username,
-  password,
-  sslMode,
-}) {
-  const credentials = `${encodeURIComponent(username)}:${encodeURIComponent(password)}`;
-  const authority = `${credentials}@${host}${port ? `:${port}` : ''}`;
-  const params = new URLSearchParams();
-  appendQueryParam(params, 'sslmode', sslMode);
-  const query = params.toString();
-  return `postgresql://${authority}/${encodePostgresPath(database)}${query ? `?${query}` : ''}`;
-}
+import {
+  buildPostgresDatabaseUrl,
+  resolveClawDatabaseEnv,
+  resolveClawDatabaseUrlFromEnv,
+} from './claw-database.mjs';
 
 export function createIamDatabaseHelpers(spec) {
   const databaseKeys = spec.database ?? {};
   const appPrefix = databaseKeys.appPrefix ?? 'SDKWORK_APP';
 
   function resolveIamDatabaseEnv(env) {
-    const merged = { ...env };
+    const merged = resolveClawDatabaseEnv({ ...env });
+
     const existingUrl = normalizeText(merged.SDKWORK_IAM_DATABASE_URL)
+      || normalizeText(merged.SDKWORK_CLAW_DATABASE_URL)
       || normalizeText(merged.SDKWORK_DATABASE_URL)
-      || normalizeText(merged.DATABASE_URL)
-      || normalizeText(merged.SDKWORK_CLAW_DATABASE_URL);
+      || normalizeText(merged.DATABASE_URL);
     if (existingUrl) {
       merged.SDKWORK_IAM_DATABASE_URL = merged.SDKWORK_IAM_DATABASE_URL || existingUrl;
-      merged.SDKWORK_DATABASE_URL = merged.SDKWORK_DATABASE_URL || existingUrl;
       merged.SDKWORK_CLAW_DATABASE_URL = merged.SDKWORK_CLAW_DATABASE_URL || existingUrl;
+      merged.SDKWORK_DATABASE_URL = merged.SDKWORK_DATABASE_URL || existingUrl;
+      return merged;
+    }
+
+    const clawUrl = resolveClawDatabaseUrlFromEnv(merged);
+    if (clawUrl) {
+      merged.SDKWORK_IAM_DATABASE_URL = clawUrl;
+      merged.SDKWORK_CLAW_DATABASE_URL = clawUrl;
+      merged.SDKWORK_DATABASE_URL = clawUrl;
       return merged;
     }
 
@@ -75,13 +62,6 @@ export function createIamDatabaseHelpers(spec) {
         merged.SDKWORK_IAM_DATABASE_URL = url;
         merged.SDKWORK_DATABASE_URL = url;
         merged.SDKWORK_CLAW_DATABASE_URL = url;
-        merged.SDKWORK_CLAW_DATABASE_ENGINE = 'postgresql';
-        merged.SDKWORK_CLAW_DATABASE_HOST = host;
-        merged.SDKWORK_CLAW_DATABASE_PORT = port;
-        merged.SDKWORK_CLAW_DATABASE_NAME = database;
-        merged.SDKWORK_CLAW_DATABASE_USERNAME = username;
-        merged.SDKWORK_CLAW_DATABASE_PASSWORD = password ?? '';
-        merged.SDKWORK_CLAW_DATABASE_SSL_MODE = sslMode;
       }
     }
 
@@ -90,8 +70,8 @@ export function createIamDatabaseHelpers(spec) {
 
   function describeIamDatabaseTarget(env) {
     const url = normalizeText(env.SDKWORK_IAM_DATABASE_URL)
-      || normalizeText(env.SDKWORK_DATABASE_URL)
-      || normalizeText(env.SDKWORK_CLAW_DATABASE_URL);
+      || normalizeText(env.SDKWORK_CLAW_DATABASE_URL)
+      || normalizeText(env.SDKWORK_DATABASE_URL);
     if (url) {
       try {
         const parsed = new URL(url);
@@ -117,12 +97,12 @@ export function createIamDatabaseHelpers(spec) {
 
   async function assertPostgresReachableForIam(env, options = {}) {
     const url = normalizeText(env.SDKWORK_IAM_DATABASE_URL)
-      || normalizeText(env.SDKWORK_DATABASE_URL)
-      || normalizeText(env.SDKWORK_CLAW_DATABASE_URL);
+      || normalizeText(env.SDKWORK_CLAW_DATABASE_URL)
+      || normalizeText(env.SDKWORK_DATABASE_URL);
     if (!url) {
       throw new Error(
         options.missingDatabaseMessage
-          ?? 'IAM requires PostgreSQL for dev login. Configure .env.postgres and start PostgreSQL.',
+          ?? 'IAM requires PostgreSQL for dev login. Configure .env.postgres with SDKWORK_CLAW_DATABASE_* and start PostgreSQL.',
       );
     }
 
@@ -147,12 +127,8 @@ export function createIamDatabaseHelpers(spec) {
   function resolveIamDevEnv(env = process.env, repoRoot, options = {}) {
     const postgresFile = options.postgresEnvFile ?? '.env.postgres';
     const postgresEnv = loadEnvFile(postgresFile, repoRoot);
-    const defaults = {
-      ...(options.iamDefaults ?? {}),
-    };
 
     return resolveIamDatabaseEnv({
-      ...defaults,
       ...postgresEnv,
       ...env,
     });

@@ -50,7 +50,6 @@
     },
     "envKeys": { "type": "object", "additionalProperties": { "type": "string" } },
     "database": { "type": "object", "additionalProperties": { "type": "string" } },
-    "iamDevDefaults": { "type": "object", "additionalProperties": { "type": "string" } },
     "components": { "type": "object" },
     "packaging": {
       "type": "object",
