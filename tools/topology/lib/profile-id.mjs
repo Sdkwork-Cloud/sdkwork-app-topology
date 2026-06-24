@@ -1,7 +1,20 @@
 import { normalizeText } from './env-file.mjs';
 
+const LEGACY_HOSTING_TO_DEPLOYMENT_PROFILE = {
+  'self-hosted': 'standalone',
+  'cloud-hosted': 'cloud',
+};
+
+export function normalizeDeploymentProfile(value) {
+  const normalized = normalizeText(value);
+  if (!normalized) {
+    return normalized;
+  }
+  return LEGACY_HOSTING_TO_DEPLOYMENT_PROFILE[normalized] ?? normalized;
+}
+
 export function buildProfileId(deploymentProfile, serviceLayout, environment) {
-  const parts = [deploymentProfile, serviceLayout, environment].map((value) => normalizeText(value));
+  const profile = normalizeDeploymentProfile(deploymentProfile);
   if (parts.some((value) => !value)) {
     throw new Error('deploymentProfile, serviceLayout, and environment are required to build a profile id');
   }

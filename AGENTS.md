@@ -36,3 +36,10 @@ pnpm run validate:example
 ## Human Review Rules
 
 Request human review before changing the public vocabulary (`topology`, `profile`), JSON schema major version, or default inference rules used by multiple applications.
+
+## Documentation Canon
+
+- [docs/README.md](docs/README.md)
+- [docs/product/prd/PRD.md](docs/product/prd/PRD.md)
+- [docs/architecture/tech/TECH_ARCHITECTURE.md](docs/architecture/tech/TECH_ARCHITECTURE.md)
+

@@ -46,7 +46,7 @@ test('resolveGatewayBind respects standalone and cloud binds', () => {
     '127.0.0.1:3910',
   );
   assert.equal(
-    runtime.resolveGatewayBind({ SDKWORK_API_GATEWAY_BIND: '127.0.0.1:3920' }, 'cloud'),
+    runtime.resolveGatewayBind({ SDKWORK_API_CLOUD_GATEWAY_BIND: '127.0.0.1:3920' }, 'cloud'),
     '127.0.0.1:3920',
   );
 });

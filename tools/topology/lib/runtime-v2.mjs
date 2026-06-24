@@ -43,7 +43,7 @@ export function createTopologyRuntimeV2(spec, repoRoot) {
   const profileIds = Object.keys(spec.profileFiles ?? {});
 
   function assertDeploymentProfile(value) {
-    const normalized = normalizeText(value);
+    const normalized = normalizeDeploymentProfile(value);
     if (!normalized || !deploymentProfileValues.includes(normalized)) {
       throw new Error(`deploymentProfile must be one of: ${deploymentProfileValues.join(', ')}`);
     }
@@ -138,7 +138,7 @@ export function createTopologyRuntimeV2(spec, repoRoot) {
         standaloneGatewayBind:
           envKeys.standaloneGatewayBind
           ?? spec.surfaces?.['application.public-ingress']?.bindEnv,
-        cloudGatewayBind: envKeys.cloudGatewayBind ?? 'SDKWORK_API_GATEWAY_BIND',
+        cloudGatewayBind: envKeys.cloudGatewayBind ?? 'SDKWORK_API_CLOUD_GATEWAY_BIND',
         clientApiGatewayBaseUrl:
           envKeys.clientApiGatewayBaseUrl
           ?? spec.surfaces?.['platform.api-gateway']?.clientHttpEnv

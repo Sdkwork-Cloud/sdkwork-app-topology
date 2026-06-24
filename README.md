@@ -10,7 +10,7 @@ Pair this framework with:
 - `../sdkwork-specs/APP_RUNTIME_TOPOLOGY_NAMING.md` — **naming authority** (hosting, serviceLayout, env keys)
 - `../sdkwork-specs/APP_RUNTIME_TOPOLOGY_ARCHETYPES.md` — reusable archetype catalog
 - `../sdkwork-github-workflow` for CI packaging matrices and lifecycle execution
-- `sdkwork-api-gateway` for cloud unified API routing
+- `sdkwork-api-cloud-gateway` for cloud unified API routing
 - Application-owned standalone gateway crates (for example `sdkwork-drive-standalone-gateway`)
 
 ## Why This Exists
@@ -129,7 +129,7 @@ Application scripts MUST NOT:
 
 - duplicate IAM URL builders
 - embed production API URLs outside profile env files
-- cross-build `sdkwork-api-gateway` (cloud binary belongs to `sdkwork-api-gateway`)
+- cross-build `sdkwork-api-cloud-gateway` (cloud binary belongs to `sdkwork-api-cloud-gateway`)
 
 ## CLI
 
@@ -168,7 +168,7 @@ Recommended profiles:
 | `standalone` | Application repository (standalone gateway binary) |
 | `cloud-config` | Application repository (gateway route/config bundle only) |
 
-Cloud gateway binaries are built and released from `sdkwork-api-gateway`.
+Cloud gateway binaries are built and released from `sdkwork-api-cloud-gateway`.
 
 Use:
 
@@ -201,3 +201,10 @@ pnpm test
 pnpm run validate:example
 ```
 # sdkwork-app-topology
+
+## Documentation Canon
+
+- [docs/README.md](docs/README.md)
+- [docs/product/prd/PRD.md](docs/product/prd/PRD.md)
+- [docs/architecture/tech/TECH_ARCHITECTURE.md](docs/architecture/tech/TECH_ARCHITECTURE.md)
+

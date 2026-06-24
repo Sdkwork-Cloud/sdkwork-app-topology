@@ -32,8 +32,8 @@
                     "standaloneGatewayBind":  "SDKWORK_DRIVE_STANDALONE_GATEWAY_BIND",
                     "standaloneGatewayConfig":  "SDKWORK_DRIVE_STANDALONE_GATEWAY_CONFIG",
                     "standaloneGatewayEnvironment":  "SDKWORK_DRIVE_STANDALONE_GATEWAY_ENVIRONMENT",
-                    "cloudGatewayBind":  "SDKWORK_API_GATEWAY_BIND",
-                    "cloudGatewayConfig":  "SDKWORK_API_GATEWAY_CONFIG",
+                    "cloudGatewayBind":  "SDKWORK_API_CLOUD_GATEWAY_BIND",
+                    "cloudGatewayConfig":  "SDKWORK_API_CLOUD_GATEWAY_CONFIG",
                     "clientTopology":  "VITE_DRIVE_PC_TOPOLOGY",
                     "clientApiGatewayBaseUrl":  "VITE_DRIVE_PC_API_GATEWAY_BASE_URL",
                     "apiGatewayBaseUrl":  "SDKWORK_DRIVE_API_GATEWAY_BASE_URL"
@@ -48,16 +48,16 @@
                                                  "configGlob":  "configs/sdkwork-drive-standalone-gateway.{profile}.toml"
                                              },
                        "cloudGateway":  {
-                                            "crate":  "sdkwork-api-gateway-api-server",
-                                            "binary":  "sdkwork-api-gateway",
-                                            "repository":  "sdkwork-api-gateway",
-                                            "configGlob":  "configs/sdkwork-api-gateway.drive.{profile}.toml"
+                                            "crate":  "sdkwork-api-cloud-gateway-api-server",
+                                            "binary":  "sdkwork-api-cloud-gateway",
+                                            "repository":  "sdkwork-api-cloud-gateway",
+                                            "configGlob":  "configs/sdkwork-api-cloud-gateway.drive.{profile}.toml"
                                         }
                    },
     "packaging":  {
                       "cloudConfigFiles":  [
-                                               "sdkwork-api-gateway.drive.development.toml",
-                                               "sdkwork-api-gateway.drive.production.toml"
+                                               "sdkwork-api-cloud-gateway.drive.development.toml",
+                                               "sdkwork-api-cloud-gateway.drive.production.toml"
                                            ],
                       "targets":  [
                                       {

@@ -155,7 +155,7 @@ async function initApp(args) {
       gatewayAutostart: `SDKWORK_${appId.replace(/-/g, '_').toUpperCase()}_GATEWAY_AUTOSTART`,
       standaloneGatewayBind: `SDKWORK_${appId.replace(/-/g, '_').toUpperCase()}_STANDALONE_GATEWAY_BIND`,
       clientTopology: `VITE_${appId.replace(/-/g, '_').toUpperCase()}_TOPOLOGY`,
-      cloudGatewayBind: 'SDKWORK_API_GATEWAY_BIND',
+      cloudGatewayBind: 'SDKWORK_API_CLOUD_GATEWAY_BIND',
     },
     database: {
       appPrefix: `SDKWORK_${appId.replace(/-/g, '_').toUpperCase()}`,
@@ -165,8 +165,8 @@ async function initApp(args) {
         configGlob: `configs/${appId}-standalone-gateway.{profile}.toml`,
       },
       cloudGateway: {
-        repository: 'sdkwork-api-gateway',
-        configGlob: `configs/sdkwork-api-gateway.${appId.replace(/^sdkwork-/, '')}.{profile}.toml`,
+        repository: 'sdkwork-api-cloud-gateway',
+        configGlob: `configs/sdkwork-api-cloud-gateway.${appId.replace(/^sdkwork-/, '')}.{profile}.toml`,
       },
     },
     packaging: {

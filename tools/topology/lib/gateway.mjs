@@ -24,7 +24,7 @@ export function createGatewayHelpers(spec, topologyHelpers) {
       }
     }
 
-    const cloudKey = envKeys.cloudGatewayBind ?? 'SDKWORK_API_GATEWAY_BIND';
+    const cloudKey = envKeys.cloudGatewayBind ?? 'SDKWORK_API_CLOUD_GATEWAY_BIND';
     const cloudBind = normalizeText(env[cloudKey]);
     if (cloudBind) {
       if (cloudBind.startsWith('http://') || cloudBind.startsWith('https://')) {
@@ -40,7 +40,7 @@ export function createGatewayHelpers(spec, topologyHelpers) {
     const explicitKeys = [
       envKeys.clientApiGatewayBaseUrl,
       envKeys.apiGatewayBaseUrl,
-      'SDKWORK_API_GATEWAY_BASE_URL',
+      'SDKWORK_API_CLOUD_GATEWAY_BASE_URL',
     ].filter(Boolean);
 
     for (const key of explicitKeys) {
@@ -72,14 +72,14 @@ export function createGatewayHelpers(spec, topologyHelpers) {
   }
 
   function resolveCloudGatewayConfigPath(env, profile = 'development', repoRoot) {
-    const configKey = envKeys.cloudGatewayConfig ?? 'SDKWORK_API_GATEWAY_CONFIG';
+    const configKey = envKeys.cloudGatewayConfig ?? 'SDKWORK_API_CLOUD_GATEWAY_CONFIG';
     const explicit = normalizeText(env[configKey]);
     if (explicit) {
       return path.isAbsolute(explicit) ? explicit : path.resolve(repoRoot, explicit);
     }
 
     const pattern = spec.components?.cloudGateway?.configGlob
-      ?? 'configs/sdkwork-api-gateway.{app}.{profile}.toml';
+      ?? 'configs/sdkwork-api-cloud-gateway.{app}.{profile}.toml';
     const appId = spec.appId ?? 'app';
     const relative = pattern
       .replaceAll('{app}', appId)

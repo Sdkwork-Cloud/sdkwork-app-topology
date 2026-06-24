@@ -1,4 +1,5 @@
-# SDKWork App Topology Standard
+> Migrated from `docs/topology-standard.md` on 2026-06-24.
+> Owner: SDKWork maintainers
 
 Version: 2.0 (platform); framework library still supports v1 Drive specs  
 Scope: cross-application deployment topology for SDKWork apps with PC/H5/desktop surfaces
@@ -137,3 +138,4 @@ Applications depend on it via sibling path:
 ```
 
 Published registry consumption is supported later; sibling path is the SDKWork workspace default.
+
