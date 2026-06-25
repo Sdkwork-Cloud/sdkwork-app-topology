@@ -57,9 +57,19 @@ test('loads sdkwork-drive v2 topology spec and profile', () => {
   assert.equal(spec.schemaVersion, 2);
   assert.equal(spec.archetype, 'application-http-gateway');
   const runtime = createTopologyRuntime(spec, driveRoot);
-  const profile = runtime.loadProfile('self-hosted.split-services.development');
-  assert.equal(profile.SDKWORK_DRIVE_HOSTING, 'self-hosted');
+  const profile = runtime.loadProfile('standalone.split-services.development');
+  assert.equal(profile.SDKWORK_DRIVE_DEPLOYMENT_PROFILE, 'standalone');
   assert.equal(profile.VITE_DRIVE_PC_PLATFORM_API_GATEWAY_HTTP_URL, 'http://127.0.0.1:3900');
+});
+
+test('resolveIamDevEnv injects application bootstrap roots from repo root', () => {
+  const driveRoot = path.resolve(frameworkRoot, '../sdkwork-drive');
+  const spec = loadTopologySpec(path.join(driveRoot, 'specs/topology.spec.json'));
+  const runtime = createTopologyRuntime(spec, driveRoot);
+  const env = runtime.resolveIamDevEnv({});
+  assert.equal(env.SDKWORK_APP_ROOT, driveRoot);
+  assert.equal(env.SDKWORK_IAM_APP_ROOT, driveRoot);
+  assert.equal(env.SDKWORK_DRIVE_APP_ROOT, driveRoot);
 });
 
 test('loads sdkwork-im v2 topology spec and resolves surfaces', () => {
@@ -67,14 +77,14 @@ test('loads sdkwork-im v2 topology spec and resolves surfaces', () => {
   const spec = loadTopologySpec(path.join(imRoot, 'specs/topology.spec.json'));
   assert.equal(spec.archetype, 'realtime-application-platform');
   const runtime = createTopologyRuntime(spec, imRoot);
-  const profile = runtime.loadProfile('self-hosted.split-services.development');
+  const profile = runtime.loadProfile('standalone.split-services.development');
   assert.equal(
     runtime.resolveSurfaceHttpUrl(profile, 'application.public-ingress'),
     'http://127.0.0.1:18079',
   );
   assert.equal(
     runtime.resolveSurfaceHttpUrl(profile, 'platform.api-gateway'),
-    'http://127.0.0.1:3900',
+    'http://127.0.0.1:18079',
   );
   assert.equal(
     runtime.resolveSurfaceWebsocketOrigin(profile, 'application.public-ingress'),

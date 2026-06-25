@@ -95,6 +95,29 @@ export function createIamDatabaseHelpers(spec) {
     return 'unknown';
   }
 
+  function applicationBootstrapEnvAliases(repoRoot, env = {}) {
+    if (!repoRoot) {
+      return {};
+    }
+
+    const resolvedAppRoot = normalizeText(env.SDKWORK_APP_ROOT) || repoRoot;
+    const aliases = {
+      SDKWORK_APP_ROOT: resolvedAppRoot,
+      SDKWORK_IAM_APP_ROOT: normalizeText(env.SDKWORK_IAM_APP_ROOT) || resolvedAppRoot,
+    };
+
+    const appId = normalizeText(spec.appId);
+    if (appId) {
+      const slug = appId.startsWith('sdkwork-') ? appId.slice('sdkwork-'.length) : appId;
+      const aliasKey = `SDKWORK_${slug.replace(/-/g, '_').toUpperCase()}_APP_ROOT`;
+      if (!normalizeText(env[aliasKey])) {
+        aliases[aliasKey] = resolvedAppRoot;
+      }
+    }
+
+    return aliases;
+  }
+
   async function assertPostgresReachableForIam(env, options = {}) {
     const url = normalizeText(env.SDKWORK_IAM_DATABASE_URL)
       || normalizeText(env.SDKWORK_CLAW_DATABASE_URL)
@@ -130,6 +153,7 @@ export function createIamDatabaseHelpers(spec) {
 
     return resolveIamDatabaseEnv({
       ...postgresEnv,
+      ...applicationBootstrapEnvAliases(repoRoot, env),
       ...env,
     });
   }

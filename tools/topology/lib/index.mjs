@@ -9,6 +9,7 @@ export {
   mergeRuntimeEnv,
   normalizeText,
   buildProfileId,
+  normalizeDeploymentProfile,
   parseProfileId,
   waitForHttpHealthy,
   isHttpHealthy,

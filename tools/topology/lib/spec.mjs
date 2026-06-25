@@ -54,7 +54,8 @@ export function loadTopologySpec(specPath) {
   if (!fs.existsSync(resolved)) {
     throw new Error(`topology spec not found: ${resolved}`);
   }
-  const spec = JSON.parse(fs.readFileSync(resolved, 'utf8'));
+  const raw = fs.readFileSync(resolved, 'utf8').replace(/^\uFEFF/u, '');
+  const spec = JSON.parse(raw);
   validateTopologySpec(spec, resolved);
   return spec;
 }

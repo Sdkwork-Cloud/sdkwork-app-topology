@@ -14,7 +14,9 @@ export function normalizeDeploymentProfile(value) {
 }
 
 export function buildProfileId(deploymentProfile, serviceLayout, environment) {
-  const profile = normalizeDeploymentProfile(deploymentProfile);
+  const parts = [normalizeDeploymentProfile(deploymentProfile), serviceLayout, environment].map((value) =>
+    normalizeText(value),
+  );
   if (parts.some((value) => !value)) {
     throw new Error('deploymentProfile, serviceLayout, and environment are required to build a profile id');
   }

@@ -6,6 +6,7 @@ import { loadEnvFile, mergeRuntimeEnv, normalizeText } from './env-file.mjs';
 import {
   buildProfileId,
   listProfileIdsFromVocabulary,
+  normalizeDeploymentProfile,
   parseProfileId,
   resolveProfileRelativePath,
 } from './profile-id.mjs';

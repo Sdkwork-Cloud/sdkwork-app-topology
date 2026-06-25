@@ -125,5 +125,5 @@ export {
   normalizeText,
 };
 
-export { buildProfileId, parseProfileId } from './profile-id.mjs';
+export { buildProfileId, normalizeDeploymentProfile, parseProfileId } from './profile-id.mjs';
 export { waitForHttpHealthy, isHttpHealthy, isTcpPortOpen } from './health.mjs';
