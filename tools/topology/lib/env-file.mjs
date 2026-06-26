@@ -6,7 +6,29 @@ export function normalizeText(value) {
   return normalized || undefined;
 }
 
-export function loadEnvFile(envFile, repoRoot) {
+export function ensurePostgresDevEnvFile(repoRoot, {
+  envFile = '.env.postgres',
+  stdout,
+} = {}) {
+  const envFilePath = path.isAbsolute(envFile) ? envFile : path.resolve(repoRoot, envFile);
+  if (fs.existsSync(envFilePath)) {
+    return envFilePath;
+  }
+  const examplePath = `${envFilePath}.example`;
+  if (!fs.existsSync(examplePath)) {
+    return envFilePath;
+  }
+  fs.copyFileSync(examplePath, envFilePath);
+  if (stdout) {
+    stdout.write(
+      `[sdkwork-postgres] created ${path.basename(envFilePath)} from ${path.basename(examplePath)}; `
+      + 'edit database credentials once, then app startup and db:* commands stay aligned\n',
+    );
+  }
+  return envFilePath;
+}
+
+export function loadEnvFile(envFile, repoRoot, options = {}) {
   if (!envFile) {
     return {};
   }
@@ -16,7 +38,7 @@ export function loadEnvFile(envFile, repoRoot) {
     if (!fs.existsSync(example)) {
       return {};
     }
-    return loadEnvFile(example, repoRoot);
+    return loadEnvFile(example, repoRoot, options);
   }
 
   const values = {};

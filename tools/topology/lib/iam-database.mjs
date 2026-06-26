@@ -1,4 +1,4 @@
-import { loadEnvFile, normalizeText } from './env-file.mjs';
+import { ensurePostgresDevEnvFile, loadEnvFile, normalizeText } from './env-file.mjs';
 import { isTcpPortReachable } from './postgres.mjs';
 import {
   buildPostgresDatabaseUrl,
@@ -149,12 +149,30 @@ export function createIamDatabaseHelpers(spec) {
 
   function resolveIamDevEnv(env = process.env, repoRoot, options = {}) {
     const postgresFile = options.postgresEnvFile ?? '.env.postgres';
+    if (options.ensurePostgresEnvFile !== false) {
+      ensurePostgresDevEnvFile(repoRoot, {
+        envFile: postgresFile,
+        stdout: options.stdout,
+      });
+    }
     const postgresEnv = loadEnvFile(postgresFile, repoRoot);
+
+    const runtimeWithoutDatabase = { ...env };
+    for (const key of Object.keys(runtimeWithoutDatabase)) {
+      if (
+        key.startsWith('SDKWORK_CLAW_DATABASE_')
+        || key.startsWith('SDKWORK_IAM_DATABASE_')
+        || key.startsWith('SDKWORK_DATABASE_')
+        || /^SDKWORK_[A-Z0-9_]+_DATABASE_/u.test(key)
+      ) {
+        delete runtimeWithoutDatabase[key];
+      }
+    }
 
     return resolveIamDatabaseEnv({
       ...postgresEnv,
       ...applicationBootstrapEnvAliases(repoRoot, env),
-      ...env,
+      ...runtimeWithoutDatabase,
     });
   }
 
