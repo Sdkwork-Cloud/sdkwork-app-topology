@@ -1,4 +1,4 @@
-﻿{
+{
     "schemaVersion":  1,
     "kind":  "sdkwork.app.topology",
     "appId":  "sdkwork-drive",
@@ -48,7 +48,7 @@
                                                  "configGlob":  "configs/sdkwork-drive-standalone-gateway.{profile}.toml"
                                              },
                        "cloudGateway":  {
-                                            "crate":  "sdkwork-api-cloud-gateway-api-server",
+                                            "crate":  "sdkwork-api-cloud-gateway",
                                             "binary":  "sdkwork-api-cloud-gateway",
                                             "repository":  "sdkwork-api-cloud-gateway",
                                             "configGlob":  "configs/sdkwork-api-cloud-gateway.drive.{profile}.toml"
