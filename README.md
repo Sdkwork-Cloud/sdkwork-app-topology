@@ -23,7 +23,7 @@ Before extraction, each product repository duplicated:
 - packaging target matrices maintained separately from CI
 - ad-hoc script sprawl (`dev`, `tauri:dev`, `desktop:build`, ...)
 
-`@sdkwork/app-topology` centralizes the **standard** so every SDKWork app (`sdkwork-drive`, `sdkwork-commerce`, `sdkwork-im`, ...) adopts the same model with only app-specific values in `specs/topology.spec.json`.
+`@sdkwork/app-topology` centralizes the **standard** so every SDKWork app (`sdkwork-drive`, `sdkwork-commerce (deleted)`, `sdkwork-im`, ...) adopts the same model with only app-specific values in `specs/topology.spec.json`.
 
 ## Core Vocabulary
 
@@ -74,7 +74,7 @@ From the target application repository root:
 
 ```bash
 node ../sdkwork-app-topology/scripts/sdkwork-topology.mjs init-app \
-  --app-id sdkwork-commerce \
+  --app-id sdkwork-commerce (deleted) \
   --app-name "SDKWork Commerce"
 ```
 
