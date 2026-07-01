@@ -30,3 +30,20 @@ tools/.gateway-alignment-report.json
 # SDKWork local runtime state
 .runtime/
 **/.runtime/
+**/node_modules/
+target/
+/target/
+**/target/
+!.env.postgres.example
+**/dist/
+coverage/
+**/.pnpm-store/
+Thumbs.db
+.idea/
+.vscode/
+*.log
+**/.sdkwork/dart/pub-cache/
+**/.sdkwork/manual-backups/
+**/.sdkwork/sdkwork-generator-changes.json
+**/.sdkwork/sdkwork-generator-manifest.json
+**/.sdkwork/sdkwork-generator-report.json

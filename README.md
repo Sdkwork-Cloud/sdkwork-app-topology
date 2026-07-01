@@ -1,4 +1,5 @@
 # SDKWork App Topology Framework
+repository-kind: foundation-dependency
 
 Cross-application standard for SDKWork deployment topology, dev profiles, gateway wiring, IAM database bootstrap, and packaging matrices.
 
