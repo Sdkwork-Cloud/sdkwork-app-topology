@@ -6,7 +6,11 @@
   "license": "SEE LICENSE IN LICENSE",
   "type": "module",
   "exports": {
-    ".": "./tools/topology/lib/index.mjs",
+    ".": {
+      "types": "./tools/topology/lib/index.mjs",
+      "import": "./tools/topology/lib/index.mjs",
+      "default": "./tools/topology/lib/index.mjs"
+    },
     "./schema": "./specs/topology.schema.json"
   },
   "bin": {
