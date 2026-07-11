@@ -23,17 +23,23 @@ function appEnvPrefix(appId) {
 
 export function createTopologyRuntimeV2(spec, repoRoot) {
   const usesDeploymentProfileVocabulary = Array.isArray(spec.vocabulary?.deploymentProfile?.allowed);
+  const usesServiceLayoutVocabulary =
+    Array.isArray(spec.vocabulary?.serviceLayout?.allowed)
+    && spec.vocabulary.serviceLayout.allowed.length > 0;
   const deploymentProfileValues =
     spec.vocabulary?.deploymentProfile?.allowed
     ?? spec.vocabulary?.hosting?.allowed
     ?? ['standalone', 'cloud'];
-  const serviceLayoutValues = spec.vocabulary?.serviceLayout?.allowed ?? ['unified-process', 'split-services'];
+  const serviceLayoutValues = usesServiceLayoutVocabulary
+    ? spec.vocabulary.serviceLayout.allowed
+    : [];
   const environmentValues = spec.vocabulary?.environment?.allowed ?? ['development', 'production'];
   const envKeys = spec.envKeys ?? {};
   const prefix = appEnvPrefix(spec.appId);
   const deploymentProfileKey =
     envKeys.deploymentProfile ?? envKeys.hosting ?? `SDKWORK_${prefix}_DEPLOYMENT_PROFILE`;
-  const serviceLayoutKey = envKeys.serviceLayout ?? `SDKWORK_${prefix}_SERVICE_LAYOUT`;
+  const serviceLayoutKey = envKeys.serviceLayout
+    ?? (usesServiceLayoutVocabulary ? `SDKWORK_${prefix}_SERVICE_LAYOUT` : undefined);
   const environmentKey = envKeys.environment ?? `SDKWORK_${prefix}_ENVIRONMENT`;
   const profileIdKey = envKeys.profileId ?? `SDKWORK_${prefix}_PROFILE_ID`;
   const clientDeploymentProfileKey =
@@ -54,6 +60,9 @@ export function createTopologyRuntimeV2(spec, repoRoot) {
   const assertHosting = assertDeploymentProfile;
 
   function assertServiceLayout(value) {
+    if (!usesServiceLayoutVocabulary) {
+      throw new Error('serviceLayout is not configured for this topology spec');
+    }
     const normalized = normalizeText(value);
     if (!normalized || !serviceLayoutValues.includes(normalized)) {
       throw new Error(`serviceLayout must be one of: ${serviceLayoutValues.join(', ')}`);
@@ -101,13 +110,16 @@ export function createTopologyRuntimeV2(spec, repoRoot) {
 
   function applyProfileEnv(profileId, layers = []) {
     const { deploymentProfile, serviceLayout, environment } = parseProfileId(assertProfileId(profileId));
-    return mergeRuntimeEnv(...layers, {
+    const profileEnv = {
       [deploymentProfileKey]: deploymentProfile,
-      [serviceLayoutKey]: serviceLayout,
       [environmentKey]: environment,
       [profileIdKey]: profileId,
       [clientDeploymentProfileKey]: deploymentProfile,
-    });
+    };
+    if (serviceLayoutKey && serviceLayout) {
+      profileEnv[serviceLayoutKey] = serviceLayout;
+    }
+    return mergeRuntimeEnv(...layers, profileEnv);
   }
 
   const legacyTopologyBridge = {
@@ -190,6 +202,11 @@ export function createTopologyRuntimeV2(spec, repoRoot) {
   }
 
   const iam = createIamDatabaseHelpers(spec);
+  function buildDefaultProfileId(deploymentProfile, serviceLayout, environment) {
+    return usesServiceLayoutVocabulary
+      ? buildProfileId(deploymentProfile, serviceLayout, environment)
+      : buildProfileId(deploymentProfile, environment);
+  }
 
   return {
     spec,
@@ -210,20 +227,20 @@ export function createTopologyRuntimeV2(spec, repoRoot) {
     clientHostingKey: clientDeploymentProfileKey,
     defaults: {
       developmentProfileId: spec.defaults?.developmentProfileId
-        ?? buildProfileId(
+        ?? buildDefaultProfileId(
           usesDeploymentProfileVocabulary ? 'standalone' : 'self-hosted',
           usesDeploymentProfileVocabulary ? 'unified-process' : 'split-services',
           'development',
         ),
       productionProfileId: spec.defaults?.productionProfileId
-        ?? buildProfileId(
+        ?? buildDefaultProfileId(
           usesDeploymentProfileVocabulary ? 'cloud' : 'cloud-hosted',
           'split-services',
           'production',
         ),
       desktopBuildProfileId: spec.defaults?.desktopBuildProfileId
         ?? spec.defaults?.productionProfileId
-        ?? buildProfileId(
+        ?? buildDefaultProfileId(
           usesDeploymentProfileVocabulary ? 'standalone' : 'cloud-hosted',
           usesDeploymentProfileVocabulary ? 'unified-process' : 'split-services',
           'production',

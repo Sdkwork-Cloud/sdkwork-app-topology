@@ -17,8 +17,8 @@ export function validateTopologySpecV2(spec, specPath = 'topology.spec.json') {
   if (!spec || typeof spec !== 'object') {
     throw new Error(`${specPath} must be a JSON object`);
   }
-  if (spec.schemaVersion !== 2) {
-    throw new Error(`${specPath} schemaVersion must be 2`);
+  if (spec.schemaVersion !== 2 && spec.schemaVersion !== 4) {
+    throw new Error(`${specPath} schemaVersion must be 2 or 4`);
   }
   if (spec.kind !== 'sdkwork.app.topology') {
     throw new Error(`${specPath} kind must be sdkwork.app.topology`);
@@ -39,8 +39,8 @@ export function validateTopologySpecV2(spec, specPath = 'topology.spec.json') {
       `${specPath} vocabulary.deploymentProfile.allowed must be a non-empty array`,
     );
   }
-  if (!Array.isArray(serviceLayout) || serviceLayout.length === 0) {
-    throw new Error(`${specPath} vocabulary.serviceLayout.allowed must be a non-empty array`);
+  if (serviceLayout !== undefined && (!Array.isArray(serviceLayout) || serviceLayout.length === 0)) {
+    throw new Error(`${specPath} vocabulary.serviceLayout.allowed must be a non-empty array when declared`);
   }
   if (!Array.isArray(environment) || environment.length === 0) {
     throw new Error(`${specPath} vocabulary.environment.allowed must be a non-empty array`);

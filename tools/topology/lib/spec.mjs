@@ -61,7 +61,7 @@ export function loadTopologySpec(specPath) {
 }
 
 export function validateTopologySpec(spec, specPath = 'topology.spec.json') {
-  if (spec?.schemaVersion === 2) {
+  if (spec?.schemaVersion === 2 || spec?.schemaVersion === 4) {
     return validateTopologySpecV2(spec, specPath);
   }
   return validateTopologySpecV1(spec, specPath);

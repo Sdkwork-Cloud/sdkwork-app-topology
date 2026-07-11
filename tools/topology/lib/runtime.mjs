@@ -108,7 +108,7 @@ function createTopologyRuntimeV1(spec, repoRoot) {
 }
 
 export function createTopologyRuntime(spec, repoRoot) {
-  if (spec.schemaVersion === 2) {
+  if (spec.schemaVersion === 2 || spec.schemaVersion === 4) {
     return createTopologyRuntimeV2(spec, repoRoot);
   }
   return createTopologyRuntimeV1(spec, repoRoot);
