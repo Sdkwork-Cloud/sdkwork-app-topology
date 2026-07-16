@@ -25,7 +25,7 @@
     "examples/"
   ],
   "scripts": {
-    "test": "node --test tests/*.test.mjs",
+    "stop": "node ../sdkwork-specs/tools/stop-sdkwork-workspace-processes.mjs --workspace .",    "test": "node --test tests/*.test.mjs",
     "validate:example": "node scripts/sdkwork-topology.mjs validate --root . --spec examples/sdkwork-drive/topology.spec.json",
     "matrix:example": "node scripts/sdkwork-topology.mjs print-matrix --root . --spec examples/sdkwork-drive/topology.spec.json"
   }
