@@ -17,7 +17,7 @@
         "application-rest-edge-device"
       ]
     },
-    "profileRoot": { "type": "string", "default": "configs/topology" },
+    "profileRoot": { "type": "string", "default": "etc/topology" },
     "profilePattern": {
       "type": "string",
       "default": "{hosting}.{serviceLayout}.{environment}.env"

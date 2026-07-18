@@ -69,7 +69,7 @@ test('v4 topology supports SDKWork v4 two-segment profile ids', () => {
     kind: 'sdkwork.app.topology',
     appId: 'sdkwork-games',
     archetype: 'application-http-gateway',
-    profileRoot: 'configs/topology',
+    profileRoot: 'etc/topology',
     profilePattern: '{deploymentProfile}.{environment}.env',
     vocabulary: {
       deploymentProfile: { allowed: ['standalone', 'cloud'] },
@@ -81,8 +81,8 @@ test('v4 topology supports SDKWork v4 two-segment profile ids', () => {
       desktopBuildProfileId: 'standalone.production',
     },
     profileFiles: {
-      'standalone.development': 'configs/topology/standalone.development.env',
-      'cloud.production': 'configs/topology/cloud.production.env',
+      'standalone.development': 'etc/topology/standalone.development.env',
+      'cloud.production': 'etc/topology/cloud.production.env',
     },
     envKeys: {
       deploymentProfile: 'SDKWORK_GAMES_DEPLOYMENT_PROFILE',

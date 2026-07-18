@@ -65,7 +65,7 @@ function printHelp() {
 Commands:
   init-app                 Scaffold topology spec and profile directories in an app repo
   validate                 Validate specs/topology.spec.json in an app repo
-  scaffold-profiles        Create missing configs/topology/*.env from templates
+  scaffold-profiles        Create missing etc/topology/*.env from templates
   print-matrix             Print packaging targets from topology spec
 
 Options:
@@ -86,7 +86,7 @@ function resolveOption(args, flag) {
 }
 
 function scaffoldProfiles(spec, appRoot, force) {
-  const templateRoot = path.join(FRAMEWORK_ROOT, 'configs', 'templates');
+  const templateRoot = path.join(FRAMEWORK_ROOT, 'etc', 'templates');
   for (const topology of spec.vocabulary.topology.allowed) {
     for (const profile of spec.vocabulary.profile.allowed) {
       const relative = spec.profileFiles[topology][profile];
@@ -162,11 +162,11 @@ async function initApp(args) {
     },
     components: {
       standaloneGateway: {
-        configGlob: `configs/${appId}-standalone-gateway.{profile}.toml`,
+        configGlob: `etc/${appId}-standalone-gateway.{profile}.toml`,
       },
       cloudGateway: {
         repository: 'sdkwork-api-cloud-gateway',
-        configGlob: `configs/sdkwork-api-cloud-gateway.${appId.replace(/^sdkwork-/, '')}.{profile}.toml`,
+        configGlob: `etc/sdkwork-api-cloud-gateway.${appId.replace(/^sdkwork-/, '')}.{profile}.toml`,
       },
     },
     packaging: {
@@ -183,7 +183,7 @@ async function initApp(args) {
     fs.mkdirSync(path.dirname(docsPath), { recursive: true });
     fs.writeFileSync(
       docsPath,
-      `# ${appName} Topology\n\nSee the SDKWork standard in the sibling repository \`sdkwork-app-topology/docs/topology-standard.md\`.\n\nThis app declares its concrete wiring in \`${specRelative}\` and profile files under \`configs/topology/\`.\n`,
+      `# ${appName} Topology\n\nSee the SDKWork standard in the sibling repository \`sdkwork-app-topology/docs/topology-standard.md\`.\n\nThis app declares its concrete wiring in \`${specRelative}\` and profile files under \`etc/topology/\`.\n`,
       'utf8',
     );
     console.log('[sdkwork-topology] wrote docs/topology-standard.md');

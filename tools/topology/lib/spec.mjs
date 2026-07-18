@@ -30,7 +30,7 @@ export function validateTopologySpecV1(spec, specPath = 'topology.spec.json') {
     throw new Error(`${specPath} vocabulary.profile.allowed must be a non-empty array`);
   }
 
-  const profileRoot = spec.profileRoot ?? 'configs/topology';
+  const profileRoot = spec.profileRoot ?? 'etc/topology';
   const profilePattern = spec.profilePattern ?? '{topology}.{profile}.env';
   for (const topology of topologies) {
     for (const profile of profiles) {

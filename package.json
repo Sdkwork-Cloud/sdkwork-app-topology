@@ -20,7 +20,7 @@
     "tools/",
     "scripts/",
     "specs/",
-    "configs/templates/",
+    "etc/templates/",
     "docs/",
     "examples/"
   ],

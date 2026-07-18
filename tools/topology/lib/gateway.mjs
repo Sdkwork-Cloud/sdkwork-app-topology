@@ -63,7 +63,7 @@ export function createGatewayHelpers(spec, topologyHelpers) {
     const environmentKey = envKeys.standaloneGatewayEnvironment ?? 'SDKWORK_APP_STANDALONE_GATEWAY_ENVIRONMENT';
     const environment = normalizeText(env[environmentKey]) || 'development';
     const pattern = spec.components?.standaloneGateway?.configGlob
-      ?? 'configs/{app}-standalone-gateway.{profile}.toml';
+      ?? 'etc/{app}-standalone-gateway.{profile}.toml';
     const appId = spec.appId ?? 'app';
     const relative = pattern
       .replaceAll('{app}', appId)
@@ -79,7 +79,7 @@ export function createGatewayHelpers(spec, topologyHelpers) {
     }
 
     const pattern = spec.components?.cloudGateway?.configGlob
-      ?? 'configs/sdkwork-api-cloud-gateway.{app}.{profile}.toml';
+      ?? 'etc/sdkwork-api-cloud-gateway.{app}.{profile}.toml';
     const appId = spec.appId ?? 'app';
     const relative = pattern
       .replaceAll('{app}', appId)

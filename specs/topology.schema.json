@@ -9,7 +9,7 @@
     "schemaVersion": { "const": 1 },
     "kind": { "const": "sdkwork.app.topology" },
     "appId": { "type": "string", "pattern": "^[a-z0-9-]+$" },
-    "profileRoot": { "type": "string", "default": "configs/topology" },
+    "profileRoot": { "type": "string", "default": "etc/topology" },
     "profilePattern": { "type": "string", "default": "{topology}.{profile}.env" },
     "vocabulary": {
       "type": "object",

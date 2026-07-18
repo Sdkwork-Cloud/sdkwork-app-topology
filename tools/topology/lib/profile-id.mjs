@@ -57,7 +57,7 @@ export function resolveProfileRelativePath(spec, profileId) {
   }
   const { deploymentProfile, hosting, serviceLayout, environment } = parseProfileId(profileId);
   const pattern = spec.profilePattern ?? '{deploymentProfile}.{serviceLayout}.{environment}.env';
-  const profileRoot = spec.profileRoot ?? 'configs/topology';
+  const profileRoot = spec.profileRoot ?? 'etc/topology';
   return `${profileRoot}/${pattern
     .replaceAll('{deploymentProfile}', deploymentProfile)
     .replaceAll('{hosting}', hosting)

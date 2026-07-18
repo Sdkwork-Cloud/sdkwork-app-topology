@@ -33,7 +33,7 @@ Before extraction, each product repository duplicated:
 | Term | Values | Meaning |
 | --- | --- | --- |
 | `topology` | `standalone`, `cloud` | How the client and dev orchestrator reach APIs |
-| `profile` | `development`, `production` | Which env file under `configs/topology/` is loaded |
+| `profile` | `development`, `production` | Which env file under `etc/topology/` is loaded |
 
 ### v2 (greenfield multi-plane apps — IM, AIoT)
 
@@ -63,7 +63,7 @@ sdkwork-app-topology/
   scripts/sdkwork-topology.mjs # CLI: init-app, validate, scaffold-profiles, print-matrix
   specs/topology.schema.json     # JSON Schema v1 (Drive-class)
   specs/topology.schema.v2.json  # JSON Schema v2 (multi-plane apps)
-  configs/templates/           # starter profile env templates
+  etc/templates/               # starter profile env templates
   docs/                        # standard and adoption docs
   examples/sdkwork-drive/      # reference spec for SDKWork Drive
   tests/                       # Node test coverage
@@ -82,7 +82,7 @@ node ../sdkwork-app-topology/scripts/sdkwork-topology.mjs init-app \
 This writes:
 
 - `specs/topology.spec.json`
-- `configs/topology/{standalone,cloud}.{development,production}.env`
+- `etc/topology/{standalone,cloud}.{development,production}.env`
 - `docs/topology-standard.md` (app-local pointer)
 
 Then add a file dependency in the application root `package.json`:
@@ -115,7 +115,7 @@ Every adopting application MUST commit:
 | Path | Purpose |
 | --- | --- |
 | `specs/topology.spec.json` | Machine-readable topology contract (`kind: sdkwork.app.topology`) |
-| `configs/topology/*.env` | Profile values only; no duplicate hardcoding in scripts |
+| `etc/topology/*.env` | Profile values only; no duplicate hardcoding in scripts |
 | `docs/topology-standard.md` | App-local command matrix and URLs |
 | `scripts/lib/*-topology.mjs` | Thin adapter over `@sdkwork/app-topology` |
 | `.env.postgres.example` | IAM/database bootstrap template when IAM login is used |

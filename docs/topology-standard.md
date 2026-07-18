@@ -34,10 +34,10 @@ Forbidden public synonyms:
 
 ```text
 specs/topology.spec.json
-configs/topology/standalone.development.env
-configs/topology/standalone.production.env
-configs/topology/cloud.development.env
-configs/topology/cloud.production.env
+etc/topology/standalone.development.env
+etc/topology/standalone.production.env
+etc/topology/cloud.development.env
+etc/topology/cloud.production.env
 docs/topology-standard.md
 scripts/lib/<app>-topology.mjs
 ```
@@ -73,7 +73,7 @@ JSON Schema: `../sdkwork-app-topology/specs/topology.schema.json`
 
 ## 5. Profile Env Rules
 
-Profiles live under `configs/topology/{topology}.{profile}.env`.
+Profiles live under `etc/topology/{topology}.{profile}.env`.
 
 Rules:
 

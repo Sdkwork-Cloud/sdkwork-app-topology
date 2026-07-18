@@ -41,7 +41,7 @@ function createTopologyRuntimeV1(spec, repoRoot) {
     assertTopology(topology);
     assertProfile(profile);
     const relative = spec.profileFiles?.[topology]?.[profile]
-      ?? `${spec.profileRoot ?? 'configs/topology'}/${(spec.profilePattern ?? '{topology}.{profile}.env')
+      ?? `${spec.profileRoot ?? 'etc/topology'}/${(spec.profilePattern ?? '{topology}.{profile}.env')
         .replaceAll('{topology}', topology)
         .replaceAll('{profile}', profile)}`;
     return path.join(repoRoot, relative);

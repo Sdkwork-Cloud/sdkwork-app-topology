@@ -2,7 +2,7 @@
     "schemaVersion":  1,
     "kind":  "sdkwork.app.topology",
     "appId":  "sdkwork-drive",
-    "profileRoot":  "configs/topology",
+    "profileRoot":  "etc/topology",
     "profilePattern":  "{topology}.{profile}.env",
     "vocabulary":  {
                        "topology":  {
@@ -17,7 +17,7 @@
                                                        "development",
                                                        "production"
                                                    ],
-                                       "description":  "Runtime profile loaded from configs/topology/{topology}.{profile}.env"
+                                       "description":  "Runtime profile loaded from etc/topology/{topology}.{profile}.env"
                                    }
                    },
     "defaults":  {
@@ -45,13 +45,13 @@
                        "standaloneGateway":  {
                                                  "crate":  "sdkwork-drive-standalone-gateway",
                                                  "binary":  "sdkwork-drive-standalone-gateway",
-                                                 "configGlob":  "configs/sdkwork-drive-standalone-gateway.{profile}.toml"
+                                                 "configGlob":  "etc/sdkwork-drive-standalone-gateway.{profile}.toml"
                                              },
                        "cloudGateway":  {
                                             "crate":  "sdkwork-api-cloud-gateway",
                                             "binary":  "sdkwork-api-cloud-gateway",
                                             "repository":  "sdkwork-api-cloud-gateway",
-                                            "configGlob":  "configs/sdkwork-api-cloud-gateway.drive.{profile}.toml"
+                                            "configGlob":  "etc/sdkwork-api-cloud-gateway.drive.{profile}.toml"
                                         }
                    },
     "packaging":  {

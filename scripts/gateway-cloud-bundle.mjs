@@ -74,11 +74,11 @@ async function main() {
 
   if (command === 'bundle') {
     await rm(stageRoot, { recursive: true, force: true });
-    const configDir = path.join(stageRoot, stageName, 'configs');
+    const configDir = path.join(stageRoot, stageName, 'etc');
     await mkdir(configDir, { recursive: true });
 
     for (const configName of configFiles) {
-      const source = path.join(repoRoot, 'configs', configName);
+      const source = path.join(repoRoot, 'etc', configName);
       if (!existsSync(source)) {
         throw new Error(`Missing cloud gateway config: ${source}`);
       }
@@ -92,8 +92,8 @@ Version: ${version}
 These TOML files configure sdkwork-api-cloud-gateway for ${appId} cloud topology.
 Build and deploy the gateway binary from the sdkwork-api-cloud-gateway repository.
 
-Included configs:
-${configFiles.map((name) => `- configs/${name}`).join('\n')}
+Included configuration:
+${configFiles.map((name) => `- etc/${name}`).join('\n')}
 `;
     await writeFile(path.join(stageRoot, stageName, 'README.md'), readme, 'utf8');
     await mkdir(path.dirname(archivePath), { recursive: true });
@@ -115,7 +115,7 @@ ${configFiles.map((name) => `- configs/${name}`).join('\n')}
 
   if (command === 'validate') {
     for (const configName of configFiles) {
-      const source = path.join(repoRoot, 'configs', configName);
+      const source = path.join(repoRoot, 'etc', configName);
       if (!existsSync(source)) {
         throw new Error(`Missing cloud gateway config: ${source}`);
       }
@@ -135,12 +135,12 @@ ${configFiles.map((name) => `- configs/${name}`).join('\n')}
       throw new Error(`Checksum mismatch for ${archivePath}`);
     }
     for (const configName of configFiles) {
-      const source = path.join(repoRoot, 'configs', configName);
+      const source = path.join(repoRoot, 'etc', configName);
       if (!existsSync(source)) {
         throw new Error(`Missing cloud gateway config: ${source}`);
       }
     }
-    console.log(`[gateway-cloud-bundle] validated configs and ${archivePath}`);
+    console.log(`[gateway-cloud-bundle] validated configuration and ${archivePath}`);
     return;
   }
 
