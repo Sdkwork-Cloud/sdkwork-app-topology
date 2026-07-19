@@ -105,13 +105,14 @@ Generic development writes a repository-scoped heartbeat registry under
 fresh registered supervisor. On Windows it uses `taskkill /T` for the full
 owned process tree and falls back to the registered direct child PIDs plus the
 supervisor when the operating-system process-tree service is unavailable.
-`doctor` composes lifecycle facade, topology v5, workflow, and deploy-manifest
-validation when those contracts are present.
+`doctor` composes lifecycle facade, app-manifest, source-config, topology v5,
+workflow, and deploy-manifest validation.
 
 Release commands delegate to `sdkwork-github-workflow`; deploy commands
 delegate to deployctl. Side-effecting operations retain the explicit profile,
 environment, artifact id/digest/evidence, approval, and rollback target gates.
-Non-workspace installations set `SDKWORK_GITHUB_WORKFLOW_CLI` and
+Non-workspace installations set `SDKWORK_APP_MANIFEST_CHECK_CLI`,
+`SDKWORK_SOURCE_CONFIG_CHECK_CLI`, `SDKWORK_GITHUB_WORKFLOW_CLI`, and
 `SDKWORK_DEPLOY_CLI` to the installed framework entrypoints; applications do
 not hardcode a parent workspace layout.
 

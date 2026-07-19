@@ -24,6 +24,8 @@ const FRAMEWORK_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url))
 const WORKSPACE_ROOT = path.resolve(FRAMEWORK_ROOT, '..');
 const DEFAULT_WORKFLOW_CLI = path.join(WORKSPACE_ROOT, 'sdkwork-github-workflow', 'scripts', 'sdkwork-workflow.mjs');
 const DEFAULT_DEPLOY_CLI = path.join(WORKSPACE_ROOT, 'sdkwork-specs', 'tools', 'deployctl.mjs');
+const DEFAULT_APP_MANIFEST_CHECK_CLI = path.join(WORKSPACE_ROOT, 'sdkwork-specs', 'tools', 'check-app-manifest-standard.mjs');
+const DEFAULT_SOURCE_CONFIG_CHECK_CLI = path.join(WORKSPACE_ROOT, 'sdkwork-specs', 'tools', 'check-source-config-standard.mjs');
 const DEVELOPMENT_SESSION_RELATIVE_PATH = path.join('.runtime', 'sdkwork-app', 'development-session.json');
 const DEVELOPMENT_SESSION_HEARTBEAT_MS = 2000;
 const DEVELOPMENT_SESSION_STALE_MS = 15000;
@@ -295,6 +297,14 @@ async function runDeploy(repoRoot, command, args) {
   } else throw new Error(`unsupported deploy phase ${phase}`);
 }
 
+async function runStandardCheck(repoRoot, environmentKey, fallback) {
+  const cli = frameworkCliPath(environmentKey, fallback);
+  if (!fs.existsSync(cli)) {
+    throw new Error(`missing standards validator: ${cli}; set ${environmentKey} for a non-workspace installation`);
+  }
+  await runCommand(process.execPath, [cli, '--root', repoRoot], repoRoot);
+}
+
 async function runStop(repoRoot, packageManifest, args) {
   const privateScript = privateLifecycleScript('stop');
   const privateResult = await runPrivateLifecycleScript(repoRoot, packageManifest, privateScript, args);
@@ -321,6 +331,8 @@ async function main(argv = process.argv.slice(2)) {
   if (command === 'doctor') {
     const issues = validateLifecyclePackage(packageManifest);
     if (issues.length > 0) throw new Error(`lifecycle contract failed: ${issues.join('; ')}`);
+    await runStandardCheck(repoRoot, 'SDKWORK_APP_MANIFEST_CHECK_CLI', DEFAULT_APP_MANIFEST_CHECK_CLI);
+    await runStandardCheck(repoRoot, 'SDKWORK_SOURCE_CONFIG_CHECK_CLI', DEFAULT_SOURCE_CONFIG_CHECK_CLI);
     loadRuntime(repoRoot);
     if (fs.existsSync(path.join(repoRoot, 'sdkwork.workflow.json'))) {
       await runWorkflow(repoRoot, 'validate', []);

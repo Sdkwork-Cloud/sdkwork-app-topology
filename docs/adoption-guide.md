@@ -14,7 +14,7 @@ topology, workflow targets, deploy profiles, and private hooks are known.
 7. Replace public scripts with thin `sdkwork-app` aliases; keep `dev` as `pnpm dev:standalone`.
 8. Align `sdkwork.workflow.json` and the thin GitHub package workflow.
 9. Upgrade `deployments/deploy.yaml` to v2 and wire artifact evidence for side-effecting deployment.
-10. Run `sdkwork-app doctor`, topology/runtime-plan checks, workflow validation, deploy validation, and the repository verification suite.
+10. Run `sdkwork-app doctor` for manifest/source-config/topology/workflow/deploy composition, then runtime-plan checks and the repository verification suite.
 
 ## Migration Waves
 

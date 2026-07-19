@@ -225,7 +225,7 @@ test('stops only the live supervisor recorded by the scoped development session'
   }
 });
 
-test('doctor validates topology, workflow, and deploy contracts as one application fixture', async () => {
+test('doctor validates manifest, source config, topology, workflow, and deploy contracts as one application fixture', async () => {
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'sdkwork-app-doctor-'));
   const repoRoot = path.join(workspace, 'sdkwork-drive');
   fs.mkdirSync(repoRoot, { recursive: true });
@@ -300,17 +300,43 @@ test('doctor validates topology, workflow, and deploy contracts as one applicati
 
   const workflowKey = 'SDKWORK_GITHUB_WORKFLOW_CLI';
   const deployKey = 'SDKWORK_DEPLOY_CLI';
+  const appManifestCheckKey = 'SDKWORK_APP_MANIFEST_CHECK_CLI';
+  const sourceConfigCheckKey = 'SDKWORK_SOURCE_CONFIG_CHECK_CLI';
+  const standardCheckLogKey = 'SDKWORK_STANDARD_CHECK_LOG';
   const previousWorkflow = process.env[workflowKey];
   const previousDeploy = process.env[deployKey];
+  const previousAppManifestCheck = process.env[appManifestCheckKey];
+  const previousSourceConfigCheck = process.env[sourceConfigCheckKey];
+  const previousStandardCheckLog = process.env[standardCheckLogKey];
+  const standardCheckStub = path.join(workspace, 'standard-check.mjs');
+  const standardCheckLog = path.join(workspace, 'standard-check.log');
+  fs.writeFileSync(standardCheckStub, [
+    "import fs from 'node:fs';",
+    "fs.appendFileSync(process.env.SDKWORK_STANDARD_CHECK_LOG, `${process.argv.slice(2).join(' ')}\\n`);",
+    '',
+  ].join('\n'));
   process.env[workflowKey] = path.resolve('..', 'sdkwork-github-workflow', 'scripts', 'sdkwork-workflow.mjs');
   process.env[deployKey] = path.resolve('..', 'sdkwork-specs', 'tools', 'deployctl.mjs');
+  process.env[appManifestCheckKey] = standardCheckStub;
+  process.env[sourceConfigCheckKey] = standardCheckStub;
+  process.env[standardCheckLogKey] = standardCheckLog;
   try {
     await main(['doctor', '--root', repoRoot]);
+    assert.deepEqual(
+      fs.readFileSync(standardCheckLog, 'utf8').trim().split(/\r?\n/u),
+      [`--root ${repoRoot}`, `--root ${repoRoot}`],
+    );
   } finally {
     if (previousWorkflow === undefined) delete process.env[workflowKey];
     else process.env[workflowKey] = previousWorkflow;
     if (previousDeploy === undefined) delete process.env[deployKey];
     else process.env[deployKey] = previousDeploy;
+    if (previousAppManifestCheck === undefined) delete process.env[appManifestCheckKey];
+    else process.env[appManifestCheckKey] = previousAppManifestCheck;
+    if (previousSourceConfigCheck === undefined) delete process.env[sourceConfigCheckKey];
+    else process.env[sourceConfigCheckKey] = previousSourceConfigCheck;
+    if (previousStandardCheckLog === undefined) delete process.env[standardCheckLogKey];
+    else process.env[standardCheckLogKey] = previousStandardCheckLog;
   }
 });
 
