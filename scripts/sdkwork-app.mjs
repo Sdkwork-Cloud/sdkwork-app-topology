@@ -243,12 +243,13 @@ async function runDevelopment(repoRoot, packageManifest, args) {
   const deploymentProfile = option(args, '--deployment-profile', 'standalone');
   const environment = option(args, '--environment', 'development');
   const runtimeTarget = option(args, '--runtime-target', 'browser');
+  const clientArchitecture = option(args, '--client-architecture');
   const dryRun = args.includes('--dry-run');
   const runtime = loadRuntime(repoRoot);
-  const plan = runtime.resolvePlan(`${deploymentProfile}.${environment}`, runtimeTarget);
+  const plan = runtime.resolvePlan(`${deploymentProfile}.${environment}`, runtimeTarget, clientArchitecture);
   if (plan.forbiddenProcesses.length > 0) throw new Error(`forbidden local processes: ${plan.forbiddenProcesses.join(', ')}`);
   const env = runtime.applyProfileEnv(plan.activeProfile, [process.env, runtime.loadProfile(plan.activeProfile)]);
-  console.log(`[sdkwork-app] ${plan.appId} ${plan.activeProfile} runtimeTarget=${runtimeTarget}`);
+  console.log(`[sdkwork-app] ${plan.appId} ${plan.activeProfile} runtimeTarget=${runtimeTarget} clientArchitecture=${plan.clientArchitecture ?? 'none'}`);
   const privateScript = privateLifecycleScript('dev', deploymentProfile);
   if (packageManifest.scripts?.[privateScript] && !dryRun) {
     const result = await runPrivateLifecycleScript(repoRoot, packageManifest, privateScript, [
@@ -353,7 +354,11 @@ async function main(argv = process.argv.slice(2)) {
   if (command === 'topology:plan') {
     const runtime = loadRuntime(repoRoot);
     const profile = `${option(forwarded, '--deployment-profile', 'standalone')}.${option(forwarded, '--environment', 'development')}`;
-    console.log(JSON.stringify(runtime.resolvePlan(profile, option(forwarded, '--runtime-target', 'browser')), null, 2));
+    console.log(JSON.stringify(runtime.resolvePlan(
+      profile,
+      option(forwarded, '--runtime-target', 'browser'),
+      option(forwarded, '--client-architecture'),
+    ), null, 2));
     return;
   }
   if (['build', 'test', 'check', 'verify', 'clean'].includes(command)) {

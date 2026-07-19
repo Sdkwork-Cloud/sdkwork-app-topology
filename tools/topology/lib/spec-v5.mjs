@@ -13,6 +13,11 @@ export const RUNTIME_TARGETS = Object.freeze([
   'server', 'container', 'test-runner',
 ]);
 
+export const CLIENT_ARCHITECTURES = Object.freeze([
+  'pc-web', 'h5', 'capacitor', 'flutter', 'tauri', 'electron',
+  'android-native', 'ios-native', 'harmony-native', 'mini-program',
+]);
+
 const CLOUD_INGRESS_STRATEGIES = new Set([
   'platform-collapsed', 'dedicated-application', 'edge-split',
 ]);
@@ -99,6 +104,14 @@ export function validateTopologySpecV5(spec, specPath = 'topology.spec.json') {
         if (!Array.isArray(process.runtimeTargets) || process.runtimeTargets.length === 0
           || process.runtimeTargets.some((target) => !RUNTIME_TARGETS.includes(target))) {
           throw new Error(`${specPath} ${profileId} process ${process.id} runtimeTargets must contain canonical runtime targets`);
+        }
+      }
+      if (process.clientArchitectures !== undefined) {
+        if (process.role !== 'client'
+          || !Array.isArray(process.clientArchitectures)
+          || process.clientArchitectures.length === 0
+          || process.clientArchitectures.some((architecture) => !CLIENT_ARCHITECTURES.includes(architecture))) {
+          throw new Error(`${specPath} ${profileId} process ${process.id} clientArchitectures must contain canonical client architectures on a client process`);
         }
       }
       if (profileId === 'cloud.development' && !['client', 'tunnel'].includes(process.role)) {

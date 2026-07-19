@@ -21,6 +21,17 @@ export function createTopologyRuntimeV5(spec, repoRoot, specPath) {
   };
   return {
     ...v5,
-    resolvePlan: (profileId, runtimeTarget) => createResolvedRuntimePlan(v5, profileId, runtimeTarget),
+    resolvePlan: (profileId, runtimeTarget, clientArchitecture = ({
+      browser: 'pc-web',
+      desktop: 'tauri',
+      'capacitor-ios': 'capacitor',
+      'capacitor-android': 'capacitor',
+      'flutter-ios': 'flutter',
+      'flutter-android': 'flutter',
+      'android-native': 'android-native',
+      'ios-native': 'ios-native',
+      'harmony-native': 'harmony-native',
+      'mini-program': 'mini-program',
+    }[runtimeTarget] ?? null)) => createResolvedRuntimePlan(v5, profileId, runtimeTarget, clientArchitecture),
   };
 }

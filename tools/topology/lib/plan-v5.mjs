@@ -22,15 +22,20 @@ function origin(value) {
   }
 }
 
-export function createResolvedRuntimePlan(runtime, profileId, runtimeTarget) {
+export function createResolvedRuntimePlan(runtime, profileId, runtimeTarget, clientArchitecture) {
   const profile = runtime.spec.orchestration?.profiles?.[runtime.assertProfileId(profileId)];
   if (!profile) throw new Error(`missing orchestration profile ${profileId}`);
   const profileEnv = runtime.loadProfile(profileId);
   const { deploymentProfile, environment } = runtime.parseProfileId(profileId);
-  const processes = (profile.processes ?? []).filter((process) =>
-    !Array.isArray(process.runtimeTargets)
+  const processes = (profile.processes ?? []).filter((process) => {
+    const runtimeMatches = !Array.isArray(process.runtimeTargets)
       || process.runtimeTargets.length === 0
-      || process.runtimeTargets.includes(runtimeTarget));
+      || process.runtimeTargets.includes(runtimeTarget);
+    const architectureMatches = !Array.isArray(process.clientArchitectures)
+      || process.clientArchitectures.length === 0
+      || process.clientArchitectures.includes(clientArchitecture);
+    return runtimeMatches && architectureMatches;
+  });
   const resolvedBaseUrls = {};
   const endpointProvenance = {};
   const remoteSurfaces = [];
@@ -73,6 +78,7 @@ export function createResolvedRuntimePlan(runtime, profileId, runtimeTarget) {
     deploymentProfile,
     environment,
     runtimeTarget,
+    clientArchitecture: clientArchitecture ?? null,
     localProcesses: processes,
     localGateway: gateways.length === 1
       ? { id: gateways[0].id, role: gateways[0].role, binary: gateways[0].binary ?? gateways[0].crate ?? null }

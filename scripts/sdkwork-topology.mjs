@@ -48,11 +48,12 @@ async function main() {
     const deploymentProfile = resolveOption(args, '--deployment-profile') ?? 'standalone';
     const environment = resolveOption(args, '--environment') ?? 'development';
     const runtimeTarget = resolveOption(args, '--runtime-target') ?? 'browser';
+    const clientArchitecture = resolveOption(args, '--client-architecture');
     const resolvedSpecPath = path.resolve(appRoot, specPath);
     const spec = loadTopologySpec(resolvedSpecPath);
     const runtime = createTopologyRuntime(spec, appRoot, resolvedSpecPath);
     if (typeof runtime.resolvePlan !== 'function') throw new Error('resolved plans require topology schemaVersion 5');
-    const plan = runtime.resolvePlan(`${deploymentProfile}.${environment}`, runtimeTarget);
+    const plan = runtime.resolvePlan(`${deploymentProfile}.${environment}`, runtimeTarget, clientArchitecture);
     if (plan.forbiddenProcesses.length > 0) {
       throw new Error(`resolved plan contains forbidden processes: ${plan.forbiddenProcesses.join(', ')}`);
     }
