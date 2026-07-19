@@ -45,8 +45,9 @@ function fixture() {
         },
         'cloud.development': {
           processes: [
-            { id: 'web-client', role: 'client', script: '_sdkwork:client', runtimeTargets: ['browser'] },
-            { id: 'desktop-client', role: 'client', script: '_sdkwork:desktop', runtimeTargets: ['desktop'] },
+            { id: 'web-client', role: 'client', script: '_sdkwork:client', runtimeTargets: ['browser'], clientArchitectures: ['pc-web'] },
+            { id: 'h5-client', role: 'client', script: '_sdkwork:h5', runtimeTargets: ['browser'], clientArchitectures: ['h5'] },
+            { id: 'desktop-client', role: 'client', script: '_sdkwork:desktop', runtimeTargets: ['desktop'], clientArchitectures: ['tauri'] },
           ],
           healthSurfaces: ['application.public-ingress', 'platform.api-gateway'],
         },
@@ -88,6 +89,17 @@ test('filters local processes by the selected runtime target', () => {
   assert.deepEqual(plan.localProcesses.map((process) => process.id), ['desktop-client']);
   spec.orchestration.profiles['cloud.development'].processes[0].runtimeTargets = ['unknown'];
   assert.throws(() => validateTopologySpec(spec, specPath), /canonical runtime targets/u);
+});
+
+test('filters browser clients by selected client architecture', () => {
+  const { root, spec, specPath } = fixture();
+  const runtime = createTopologyRuntime(spec, root, specPath);
+  assert.deepEqual(
+    runtime.resolvePlan('cloud.development', 'browser', 'h5').localProcesses.map((process) => process.id),
+    ['h5-client'],
+  );
+  spec.orchestration.profiles['cloud.development'].processes[1].clientArchitectures = ['unknown'];
+  assert.throws(() => validateTopologySpec(spec, specPath), /canonical client architectures/u);
 });
 
 test('rejects retired service layouts and different collapsed origins', () => {
