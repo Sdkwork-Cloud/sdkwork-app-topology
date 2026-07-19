@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "kind": "sdkwork.component.spec",
+  "component": {
+    "name": "@sdkwork/app-topology",
+    "displayName": "SDKWork Application Lifecycle And Topology Framework",
+    "version": "0.2.0",
+    "type": "node-package",
+    "root": "sdkwork-app-topology",
+    "domain": "platform",
+    "capability": "application-lifecycle",
+    "languages": ["javascript"],
+    "generated": false,
+    "status": "active",
+    "manifests": ["package.json", "specs/topology.schema.v5.json"]
+  },
+  "canonicalSpecs": [
+    { "file": "PNPM_SCRIPT_SPEC.md", "path": "../sdkwork-specs/PNPM_SCRIPT_SPEC.md", "purpose": "Uniform public lifecycle commands." },
+    { "file": "APP_RUNTIME_TOPOLOGY_SPEC.md", "path": "../sdkwork-specs/APP_RUNTIME_TOPOLOGY_SPEC.md", "purpose": "Topology v5 and resolved runtime plan authority." },
+    { "file": "GITHUB_WORKFLOW_SPEC.md", "path": "../sdkwork-specs/GITHUB_WORKFLOW_SPEC.md", "purpose": "Package, publish, and deployment workflow delegation." },
+    { "file": "SDKWORK_DEPLOY_SPEC.md", "path": "../sdkwork-specs/SDKWORK_DEPLOY_SPEC.md", "purpose": "Deployment execution delegation." }
+  ],
+  "contracts": {
+    "publicExports": [".", "./lifecycle", "./schema"],
+    "runtimeEntrypoints": ["sdkwork-topology", "sdkwork-app"],
+    "routeManifest": null,
+    "sdkClients": [],
+    "events": [],
+    "configKeys": []
+  },
+  "verification": {
+    "commands": ["pnpm test", "pnpm check"]
+  }
+}

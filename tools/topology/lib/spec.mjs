@@ -3,6 +3,7 @@ import path from 'node:path';
 
 import { normalizeText } from './env-file.mjs';
 import { validateTopologySpecV2 } from './spec-v2.mjs';
+import { validateTopologySpecV5 } from './spec-v5.mjs';
 
 export const DEFAULT_TOPOLOGIES = ['standalone', 'cloud'];
 export const DEFAULT_PROFILES = ['development', 'production'];
@@ -61,6 +62,7 @@ export function loadTopologySpec(specPath) {
 }
 
 export function validateTopologySpec(spec, specPath = 'topology.spec.json') {
+  if (spec?.schemaVersion === 5) return validateTopologySpecV5(spec, specPath);
   if (spec?.schemaVersion === 2 || spec?.schemaVersion === 4) {
     return validateTopologySpecV2(spec, specPath);
   }

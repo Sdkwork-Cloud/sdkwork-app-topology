@@ -16,6 +16,16 @@ export {
   isTcpPortOpen,
 } from './runtime.mjs';
 
+export {
+  PUBLIC_LIFECYCLE_COMMANDS,
+  loadPackageManifest,
+  privateLifecycleScript,
+  resolveProcessInvocation,
+  runPrivateLifecycleScript,
+  spawnLifecycleCommand,
+  validateLifecyclePackage,
+} from './lifecycle.mjs';
+
 export { isTcpPortReachable, DEFAULT_POSTGRES_REACHABILITY_TIMEOUT_MS } from './postgres.mjs';
 
 export {

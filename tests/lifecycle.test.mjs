@@ -1,0 +1,340 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawn } from 'node:child_process';
+import test from 'node:test';
+
+import { platformLifecycleInvocation, resolveProcessInvocation } from '../tools/topology/lib/lifecycle.mjs';
+
+import {
+  readDevelopmentSession,
+  developmentSessionPath,
+  frameworkCliPath,
+  main,
+  passthroughArgs,
+  removeDevelopmentSession,
+  sameModulePath,
+  stopManagedDevelopmentSession,
+  writeDevelopmentSession,
+} from '../scripts/sdkwork-app.mjs';
+import {
+  privateLifecycleScript,
+  validateLifecyclePackage,
+} from '../tools/topology/lib/lifecycle.mjs';
+
+test('accepts thin public lifecycle aliases and private implementation hooks', () => {
+  const facade = 'pnpm exec sdkwork-app';
+  const manifest = { scripts: {
+    dev: 'pnpm dev:standalone',
+    'dev:standalone': `${facade} dev --deployment-profile standalone`,
+    'dev:cloud': `${facade} dev --deployment-profile cloud`,
+    build: `${facade} build`,
+    test: `${facade} test`,
+    check: `${facade} check`,
+    verify: `${facade} verify`,
+    clean: `${facade} clean`,
+    stop: `${facade} stop`,
+    '_sdkwork:build': 'cargo build --workspace',
+  } };
+  assert.deepEqual(validateLifecyclePackage(manifest), []);
+  assert.equal(privateLifecycleScript('dev', 'cloud'), '_sdkwork:dev:cloud');
+});
+
+test('rejects public scripts that bypass the lifecycle facade', () => {
+  const issues = validateLifecyclePackage({ scripts: { dev: 'vite', build: 'cargo build' } });
+  assert.ok(issues.some((issue) => issue.includes('dev must delegate')));
+  assert.ok(issues.some((issue) => issue.includes('scripts.build')));
+});
+
+test('requires private development hooks to provide a scoped stop hook', () => {
+  const facade = 'pnpm exec sdkwork-app';
+  const manifest = { scripts: {
+    dev: 'pnpm dev:standalone',
+    'dev:standalone': `${facade} dev --deployment-profile standalone`,
+    'dev:cloud': `${facade} dev --deployment-profile cloud`,
+    stop: `${facade} stop`,
+    build: `${facade} build`,
+    test: `${facade} test`,
+    check: `${facade} check`,
+    verify: `${facade} verify`,
+    clean: `${facade} clean`,
+    '_sdkwork:dev:standalone': 'node scripts/dev.mjs',
+  } };
+  assert.ok(validateLifecyclePackage(manifest).some((issue) => issue.includes('_sdkwork:stop')));
+  manifest.scripts['_sdkwork:stop'] = 'node scripts/stop.mjs';
+  assert.deepEqual(validateLifecyclePackage(manifest), []);
+});
+
+test('resolves script, command, and cargo topology processes without a shell', () => {
+  assert.deepEqual(resolveProcessInvocation({ script: 'dev:client' }), { command: 'pnpm', args: ['run', 'dev:client'] });
+  assert.deepEqual(resolveProcessInvocation({ command: 'flutter', args: ['run'] }), { command: 'flutter', args: ['run'] });
+  assert.deepEqual(resolveProcessInvocation({ crate: 'sdkwork-demo', binary: 'sdkwork-demo' }), {
+    command: 'cargo', args: ['run', '-p', 'sdkwork-demo', '--bin', 'sdkwork-demo'],
+  });
+});
+
+test('resolves pnpm through its JavaScript CLI on Windows without a shell', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sdkwork-pnpm-cli-'));
+  const pnpmCli = path.join(root, 'pnpm.cjs');
+  fs.writeFileSync(pnpmCli, '');
+  assert.deepEqual(
+    platformLifecycleInvocation('pnpm', ['run', 'check'], {
+      platform: 'win32',
+      env: { npm_execpath: pnpmCli },
+      nodeExecutable: 'node.exe',
+    }),
+    { command: 'node.exe', args: [pnpmCli, 'run', 'check'] },
+  );
+  assert.deepEqual(
+    platformLifecycleInvocation('cargo', ['check'], { platform: 'win32' }),
+    { command: 'cargo', args: ['check'] },
+  );
+  assert.deepEqual(
+    platformLifecycleInvocation('pnpm', ['test'], { platform: 'linux' }),
+    { command: 'pnpm', args: ['test'] },
+  );
+});
+
+test('preserves dry-run while removing facade-only root selection', () => {
+  assert.deepEqual(
+    passthroughArgs(
+      ['--root', 'demo', '--deployment-profile', 'cloud', '--dry-run'],
+      new Set(['--root']),
+    ),
+    ['--deployment-profile', 'cloud', '--dry-run'],
+  );
+});
+
+test('recognizes the CLI through a workspace directory link', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sdkwork-app-bin-link-'));
+  const link = path.join(root, 'app-topology');
+  const frameworkRoot = path.resolve('.');
+  fs.symlinkSync(frameworkRoot, link, 'junction');
+  assert.equal(
+    sameModulePath(
+      path.join(link, 'scripts', 'sdkwork-app.mjs'),
+      path.join(frameworkRoot, 'scripts', 'sdkwork-app.mjs'),
+    ),
+    true,
+  );
+});
+
+test('writes a scoped development session and refuses stale sessions', () => {
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'sdkwork-app-session-'));
+  writeDevelopmentSession(repoRoot, {
+    schemaVersion: 1,
+    repoRoot,
+    supervisorPid: process.pid,
+    profileId: 'standalone.development',
+    runtimeTarget: 'browser',
+  });
+  assert.equal(path.dirname(developmentSessionPath(repoRoot)).endsWith(path.join('.runtime', 'sdkwork-app')), true);
+  assert.equal(readDevelopmentSession(repoRoot).repoRoot, repoRoot);
+  const session = readDevelopmentSession(repoRoot);
+  writeDevelopmentSession(repoRoot, { ...session, heartbeatAt: new Date(Date.now() - 60000).toISOString() });
+  assert.throws(() => stopManagedDevelopmentSession(repoRoot), /session registry is stale/u);
+  assert.equal(fs.existsSync(developmentSessionPath(repoRoot)), false);
+  removeDevelopmentSession(repoRoot);
+});
+
+test('stops only the live supervisor recorded by the scoped development session', async () => {
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'sdkwork-app-live-stop-'));
+  const childPidFile = path.join(repoRoot, 'owned-child.pid');
+  const supervisorScript = [
+    "const { spawn } = require('node:child_process');",
+    "const fs = require('node:fs');",
+    "const owned = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore', windowsHide: true });",
+    "fs.writeFileSync(process.argv[1], String(owned.pid));",
+    "const stop = () => { try { owned.kill('SIGTERM'); } finally { process.exit(0); } };",
+    "process.once('SIGINT', stop);",
+    "process.once('SIGTERM', stop);",
+    "setInterval(() => {}, 1000);",
+  ].join(' ');
+  const child = spawn(process.execPath, ['-e', supervisorScript, childPidFile], {
+    detached: process.platform === 'win32',
+    stdio: 'ignore',
+    windowsHide: true,
+  });
+  await new Promise((resolve, reject) => {
+    child.once('spawn', resolve);
+    child.once('error', reject);
+  });
+  try {
+    const childPid = await new Promise((resolve, reject) => {
+      const deadline = Date.now() + 5000;
+      const read = () => {
+        if (fs.existsSync(childPidFile)) {
+          resolve(Number(fs.readFileSync(childPidFile, 'utf8')));
+          return;
+        }
+        if (Date.now() >= deadline) {
+          reject(new Error('owned child PID was not registered by supervisor'));
+          return;
+        }
+        setTimeout(read, 25);
+      };
+      read();
+    });
+    writeDevelopmentSession(repoRoot, {
+      schemaVersion: 1,
+      repoRoot,
+      supervisorPid: child.pid,
+      childPids: [childPid],
+      profileId: 'standalone.development',
+      runtimeTarget: 'browser',
+    });
+    const exited = new Promise((resolve) => child.once('exit', resolve));
+    assert.equal(stopManagedDevelopmentSession(repoRoot), true);
+    let timeout;
+    try {
+      await Promise.race([
+        exited,
+        new Promise((_, reject) => {
+          timeout = setTimeout(() => reject(new Error('managed supervisor did not exit')), 5000);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timeout);
+    }
+    assert.equal(child.exitCode !== null || child.signalCode !== null, true);
+    await new Promise((resolve, reject) => {
+      const deadline = Date.now() + 5000;
+      const check = () => {
+        try {
+          process.kill(childPid, 0);
+        } catch (error) {
+          if (error.code === 'ESRCH') {
+            resolve();
+            return;
+          }
+          reject(error);
+          return;
+        }
+        if (Date.now() >= deadline) {
+          reject(new Error('owned child process did not exit'));
+          return;
+        }
+        setTimeout(check, 25);
+      };
+      check();
+    });
+  } finally {
+    if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+    removeDevelopmentSession(repoRoot);
+  }
+});
+
+test('doctor validates topology, workflow, and deploy contracts as one application fixture', async () => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'sdkwork-app-doctor-'));
+  const repoRoot = path.join(workspace, 'sdkwork-drive');
+  fs.mkdirSync(repoRoot, { recursive: true });
+  const topology = JSON.parse(fs.readFileSync(
+    path.resolve('examples', 'sdkwork-drive', 'topology.spec.json'),
+    'utf8',
+  ));
+  topology.profileRoot = 'etc/topology';
+  for (const profileId of Object.keys(topology.profileFiles)) {
+    topology.profileFiles[profileId] = `etc/topology/${profileId}.env`;
+  }
+  fs.mkdirSync(path.join(repoRoot, 'specs'), { recursive: true });
+  fs.mkdirSync(path.join(repoRoot, 'etc', 'topology'), { recursive: true });
+  fs.mkdirSync(path.join(repoRoot, 'deployments'), { recursive: true });
+  fs.writeFileSync(path.join(repoRoot, 'specs', 'topology.spec.json'), JSON.stringify(topology, null, 2));
+  for (const profileId of Object.keys(topology.profileFiles)) {
+    const source = path.resolve('examples', 'sdkwork-drive', 'etc', 'topology', `${profileId}.env`);
+    fs.copyFileSync(source, path.join(repoRoot, 'etc', 'topology', `${profileId}.env`));
+  }
+  const facade = 'pnpm exec sdkwork-app';
+  fs.writeFileSync(path.join(repoRoot, 'package.json'), JSON.stringify({
+    scripts: {
+      dev: 'pnpm dev:standalone',
+      'dev:standalone': `${facade} dev --deployment-profile standalone`,
+      'dev:cloud': `${facade} dev --deployment-profile cloud`,
+      stop: `${facade} stop`,
+      build: `${facade} build`,
+      test: `${facade} test`,
+      check: `${facade} check`,
+      verify: `${facade} verify`,
+      clean: `${facade} clean`,
+    },
+  }, null, 2));
+  fs.writeFileSync(path.join(repoRoot, 'sdkwork.workflow.json'), JSON.stringify({
+    schemaVersion: '2026-06-06.sdkwork.workflow.v1',
+    app: { id: 'sdkwork-drive', repository: 'Sdkwork-Cloud/sdkwork-drive' },
+    release: { artifactPrefix: 'sdkwork-drive', defaultVersion: '1.0.0' },
+    targets: [{
+      id: 'linux-x64-standalone-server-tar-gz',
+      profileBinding: 'fixed',
+      deploymentProfile: 'standalone',
+      runtimeTarget: 'server',
+      profile: 'server',
+      platform: 'linux',
+      architecture: 'x64',
+      formats: ['tar.gz'],
+      runner: 'ubuntu-24.04',
+      outputGlobs: ['dist/*.tar.gz'],
+    }],
+  }, null, 2));
+  fs.writeFileSync(path.join(repoRoot, 'deployments', 'deploy.yaml'), [
+    'version: 2',
+    'profile: cloud.production',
+    'deployment:',
+    '  deploymentProfile: cloud',
+    '  environment: production',
+    '  deliveryKind: configuration-bundle',
+    '  deploymentDriver: nginx',
+    '  managementModel: sdkwork-managed',
+    '  tenancyModel: multi-tenant',
+    '  isolationModel: shared',
+    '  networkExposure: public',
+    '  rolloutStrategy: rolling',
+    '  availabilityMode: high-availability',
+    'install:',
+    '  layout: binary-package',
+    'expose: []',
+    'packages: []',
+    'overrides: {}',
+    '',
+  ].join('\n'));
+
+  const workflowKey = 'SDKWORK_GITHUB_WORKFLOW_CLI';
+  const deployKey = 'SDKWORK_DEPLOY_CLI';
+  const previousWorkflow = process.env[workflowKey];
+  const previousDeploy = process.env[deployKey];
+  process.env[workflowKey] = path.resolve('..', 'sdkwork-github-workflow', 'scripts', 'sdkwork-workflow.mjs');
+  process.env[deployKey] = path.resolve('..', 'sdkwork-specs', 'tools', 'deployctl.mjs');
+  try {
+    await main(['doctor', '--root', repoRoot]);
+  } finally {
+    if (previousWorkflow === undefined) delete process.env[workflowKey];
+    else process.env[workflowKey] = previousWorkflow;
+    if (previousDeploy === undefined) delete process.env[deployKey];
+    else process.env[deployKey] = previousDeploy;
+  }
+});
+
+test('release publication cannot bypass the workflow contract through a private hook', async () => {
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'sdkwork-app-release-'));
+  fs.writeFileSync(path.join(repoRoot, 'package.json'), JSON.stringify({
+    scripts: {
+      '_sdkwork:release:publish': 'node -e "process.exit(0)"',
+    },
+  }));
+  await assert.rejects(
+    () => main(['release:publish', '--root', repoRoot, '--target-id', 'web-universal-cloud-browser-web-url']),
+    /sdkwork\.workflow\.json is required/u,
+  );
+});
+
+test('resolves framework CLIs from explicit non-workspace overrides', () => {
+  const key = 'SDKWORK_TEST_FRAMEWORK_CLI';
+  const previous = process.env[key];
+  process.env[key] = path.join('tooling', 'framework.mjs');
+  try {
+    assert.equal(frameworkCliPath(key, 'fallback.mjs'), path.resolve('tooling', 'framework.mjs'));
+  } finally {
+    if (previous === undefined) delete process.env[key];
+    else process.env[key] = previous;
+  }
+});

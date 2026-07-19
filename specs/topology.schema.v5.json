@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sdkwork.com/schemas/sdkwork.app.topology.schema.v5.json",
+  "title": "SDKWork Application Runtime Topology v5",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "kind", "appId", "vocabulary", "cloudIngress", "profileFiles", "surfaces", "orchestration"],
+  "properties": {
+    "schemaVersion": { "const": 5 },
+    "kind": { "const": "sdkwork.app.topology" },
+    "appId": { "type": "string", "pattern": "^sdkwork-[a-z0-9-]+$" },
+    "vocabulary": {
+      "type": "object",
+      "required": ["deploymentProfile", "environment"],
+      "properties": {
+        "deploymentProfile": {
+          "type": "object",
+          "required": ["allowed"],
+          "properties": { "allowed": { "const": ["standalone", "cloud"] } }
+        },
+        "environment": {
+          "type": "object",
+          "required": ["allowed"],
+          "properties": { "allowed": { "type": "array", "items": { "type": "string" }, "minItems": 1, "uniqueItems": true } }
+        }
+      }
+    },
+    "cloudIngress": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["strategy", "platformGateway"],
+          "properties": {
+            "strategy": { "const": "platform-collapsed" },
+            "platformGateway": { "const": "sdkwork-api-cloud-gateway" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["strategy", "platformGateway", "applicationGateway", "decisionRef"],
+          "properties": {
+            "strategy": { "const": "dedicated-application" },
+            "platformGateway": { "const": "sdkwork-api-cloud-gateway" },
+            "applicationGateway": { "type": "string", "minLength": 1 },
+            "decisionRef": { "type": "string", "minLength": 1 }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["strategy", "platformGateway", "edgeGateway", "decisionRef"],
+          "properties": {
+            "strategy": { "const": "edge-split" },
+            "platformGateway": { "const": "sdkwork-api-cloud-gateway" },
+            "edgeGateway": { "type": "string", "minLength": 1, "not": { "const": "sdkwork-api-cloud-gateway" } },
+            "applicationGateway": { "type": "string", "minLength": 1 },
+            "decisionRef": { "type": "string", "minLength": 1 }
+          }
+        }
+      ]
+    },
+    "profileFiles": {
+      "type": "object",
+      "patternProperties": { "^(standalone|cloud)\\.[a-z0-9-]+$": { "type": "string", "minLength": 1 } },
+      "additionalProperties": false
+    },
+    "surfaces": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "connectivityPlane": { "enum": ["application", "platform", "dependency"] },
+          "protocols": { "type": "array", "items": { "type": "string" }, "minItems": 1, "uniqueItems": true },
+          "httpUrlEnv": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]+$" },
+          "clientHttpEnv": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]+$" },
+          "autostartEnv": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]+$" }
+        }
+      }
+    },
+    "orchestration": {
+      "type": "object",
+      "required": ["profiles"],
+      "properties": {
+        "profiles": {
+          "type": "object",
+          "patternProperties": {
+            "^(standalone|cloud)\\.[a-z0-9-]+$": {
+              "type": "object",
+              "properties": {
+                "processes": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["id", "role"],
+                    "properties": {
+                      "id": { "type": "string", "minLength": 1 },
+                      "role": { "enum": ["client", "standalone-gateway", "application-cloud-gateway", "platform-gateway", "api-listener", "database", "redis", "migration", "seed", "worker", "tunnel"] },
+                      "runtimeTargets": {
+                        "type": "array",
+                        "minItems": 1,
+                        "uniqueItems": true,
+                        "items": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  }
+}

@@ -18,32 +18,33 @@ test('loads and validates sdkwork-drive example spec', () => {
   const specPath = path.join(frameworkRoot, 'examples/sdkwork-drive/topology.spec.json');
   const spec = loadTopologySpec(specPath);
   assert.equal(spec.appId, 'sdkwork-drive');
-  assert.deepEqual(spec.vocabulary.topology.allowed, ['standalone', 'cloud']);
+  assert.equal(spec.schemaVersion, 5);
+  assert.deepEqual(spec.vocabulary.deploymentProfile.allowed, ['standalone', 'cloud']);
 });
 
 test('createTopologyRuntime loads standalone development profile keys', () => {
-  const exampleRoot = path.join(frameworkRoot, 'examples/sdkwork-drive');
-  const spec = loadTopologySpec(path.join(exampleRoot, 'topology.spec.json'));
-  const runtime = createTopologyRuntime(spec, exampleRoot);
-  const profile = runtime.loadTopologyProfile('standalone', 'development');
-  assert.equal(profile.SDKWORK_DRIVE_TOPOLOGY, 'standalone');
-  assert.equal(profile.VITE_DRIVE_PC_API_GATEWAY_BASE_URL, 'http://127.0.0.1:3900');
+  const specPath = path.join(frameworkRoot, 'examples/sdkwork-drive/topology.spec.json');
+  const spec = loadTopologySpec(specPath);
+  const runtime = createTopologyRuntime(spec, frameworkRoot, specPath);
+  const profile = runtime.loadProfile('standalone.development');
+  assert.equal(profile.SDKWORK_DRIVE_DEPLOYMENT_PROFILE, 'standalone');
+  assert.equal(profile.SDKWORK_DRIVE_APPLICATION_PUBLIC_HTTP_URL, 'http://127.0.0.1:3900');
 });
 
 test('applyTopologyEnv injects topology keys', () => {
   const spec = loadTopologySpec(path.join(frameworkRoot, 'examples/sdkwork-drive/topology.spec.json'));
-  const runtime = createTopologyRuntime(spec, path.resolve(frameworkRoot, '../sdkwork-drive'));
-  const env = runtime.applyTopologyEnv('cloud', [mergeRuntimeEnv({ FOO: 'bar' })]);
-  assert.equal(env.SDKWORK_DRIVE_TOPOLOGY, 'cloud');
-  assert.equal(env.VITE_DRIVE_PC_TOPOLOGY, 'cloud');
+  const runtime = createTopologyRuntime(spec, frameworkRoot, path.join(frameworkRoot, 'examples/sdkwork-drive/topology.spec.json'));
+  const env = runtime.applyProfileEnv('cloud.development', [mergeRuntimeEnv({ FOO: 'bar' })]);
+  assert.equal(env.SDKWORK_DRIVE_DEPLOYMENT_PROFILE, 'cloud');
+  assert.equal(env.VITE_SDKWORK_DRIVE_DEPLOYMENT_PROFILE, 'cloud');
   assert.equal(env.FOO, 'bar');
 });
 
 test('resolveGatewayBind respects standalone and cloud binds', () => {
   const spec = loadTopologySpec(path.join(frameworkRoot, 'examples/sdkwork-drive/topology.spec.json'));
-  const runtime = createTopologyRuntime(spec, path.resolve(frameworkRoot, '../sdkwork-drive'));
+  const runtime = createTopologyRuntime(spec, frameworkRoot, path.join(frameworkRoot, 'examples/sdkwork-drive/topology.spec.json'));
   assert.equal(
-    runtime.resolveGatewayBind({ SDKWORK_DRIVE_STANDALONE_GATEWAY_BIND: '127.0.0.1:3910' }, 'standalone'),
+    runtime.resolveGatewayBind({ SDKWORK_DRIVE_APPLICATION_PUBLIC_INGRESS_BIND: '127.0.0.1:3910' }, 'standalone'),
     '127.0.0.1:3910',
   );
   assert.equal(
@@ -52,10 +53,10 @@ test('resolveGatewayBind respects standalone and cloud binds', () => {
   );
 });
 
-test('loads sdkwork-drive v4 topology spec and profile', () => {
+test('loads the sdkwork-drive v5 topology spec and profile', () => {
   const driveRoot = path.resolve(frameworkRoot, '../sdkwork-drive');
   const spec = loadTopologySpec(path.join(driveRoot, 'specs/topology.spec.json'));
-  assert.equal(spec.schemaVersion, 4);
+  assert.equal(spec.schemaVersion, 5);
   assert.equal(spec.archetype, 'application-http-gateway');
   const runtime = createTopologyRuntime(spec, driveRoot);
   const profile = runtime.loadProfile('standalone.development');
@@ -127,11 +128,12 @@ test('resolveIamDevEnv injects application bootstrap roots from repo root', () =
   assert.equal(env.SDKWORK_DRIVE_APP_ROOT, driveRoot);
 });
 
-test('loads sdkwork-im v4 topology spec and resolves surfaces', () => {
+test('loads sdkwork-im v5 topology spec and resolves standalone and cloud surfaces', () => {
   const imRoot = path.resolve(frameworkRoot, '../sdkwork-im');
   const spec = loadTopologySpec(path.join(imRoot, 'specs/topology.spec.json'));
-  assert.equal(spec.schemaVersion, 4);
+  assert.equal(spec.schemaVersion, 5);
   assert.equal(spec.archetype, 'realtime-application-platform');
+  assert.equal(spec.cloudIngress.strategy, 'platform-collapsed');
   const runtime = createTopologyRuntime(spec, imRoot);
   const profile = runtime.loadProfile('standalone.development');
   assert.equal(
@@ -145,5 +147,14 @@ test('loads sdkwork-im v4 topology spec and resolves surfaces', () => {
   assert.equal(
     runtime.resolveSurfaceWebsocketOrigin(profile, 'application.public-ingress'),
     'ws://127.0.0.1:18079',
+  );
+  const cloudProfile = runtime.loadProfile('cloud.development');
+  assert.equal(
+    runtime.resolveSurfaceHttpUrl(cloudProfile, 'application.public-ingress'),
+    'https://api-dev.sdkwork.com',
+  );
+  assert.equal(
+    runtime.resolveSurfaceHttpUrl(cloudProfile, 'platform.api-gateway'),
+    'https://api-dev.sdkwork.com',
   );
 });

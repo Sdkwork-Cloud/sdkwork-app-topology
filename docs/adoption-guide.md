@@ -1,75 +1,32 @@
-# Adoption Guide
+# SDKWork Application Lifecycle Adoption
 
-This guide migrates an existing SDKWork application from ad-hoc gateway/dev scripts to `@sdkwork/app-topology`.
+Migrate one application root at a time. Do not bulk-replace commands until its
+topology, workflow targets, deploy profiles, and private hooks are known.
 
-## Phase 1 — Declare the contract
+## Sequence
 
-1. Run `init-app` from the framework repo CLI.
-2. Replace generic template keys with app-specific env keys (Drive uses `VITE_DRIVE_PC_*`).
-3. Move hardcoded URLs from scripts into the four profile env files.
-4. Add `docs/topology-standard.md` command matrix.
+1. Run `node ../sdkwork-specs/tools/audit-pnpm-lifecycle-framework.mjs --workspace .. --json` and select the next approved wave.
+2. Upgrade `specs/topology.spec.json` to v5 and remove active `hosting` and `serviceLayout` vocabulary.
+3. Materialize concrete `etc/topology/<profile-id>.env` files.
+4. Declare canonical process roles and commands/private hooks.
+5. Add `_sdkwork:dev:standalone` and `_sdkwork:dev:cloud` only when generic process declarations are insufficient.
+6. Move existing build/test/check/verify/clean implementations to corresponding private `_sdkwork:*` scripts.
+7. Replace public scripts with thin `sdkwork-app` aliases; keep `dev` as `pnpm dev:standalone`.
+8. Align `sdkwork.workflow.json` and the thin GitHub package workflow.
+9. Upgrade `deployments/deploy.yaml` to v2 and wire artifact evidence for side-effecting deployment.
+10. Run `sdkwork-app doctor`, topology/runtime-plan checks, workflow validation, deploy validation, and the repository verification suite.
 
-## Phase 2 — Add the library adapter
+## Migration Waves
 
-Create `scripts/lib/<app>-topology.mjs`:
+| Wave | Root shape | Purpose |
+| --- | --- | --- |
+| 0 | Framework/foundation dependency | Stabilize shared engines first |
+| 1 | Topology + workflow + deploy manifest | Full end-to-end pilots |
+| 2 | Topology + workflow | Package/release pilots |
+| 3 | Topology only | Development/runtime migration |
+| 4 | Package manifest without topology | Establish application root contract |
+| 5 | Manifest without package root | Native/mobile or incomplete-root remediation |
 
-```javascript
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { createTopologyRuntime, loadTopologySpec } from '@sdkwork/app-topology';
-
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const spec = loadTopologySpec(path.join(repoRoot, 'specs/topology.spec.json'));
-export const appTopology = createTopologyRuntime(spec, repoRoot);
-```
-
-Re-export only what local scripts need.
-
-## Phase 3 — Rename scripts and commands
-
-| Old pattern | New pattern |
-| --- | --- |
-| `run-<app>-pc-dev.mjs` | `<app>-dev.mjs` |
-| `run-<app>-pc-build.mjs` | `<app>-build.mjs` |
-| `--gateway-mode` | `--topology` |
-| `pnpm dev` | `pnpm <app>:dev` |
-| `pnpm desktop:build` | `pnpm <app>:build` |
-
-Delete legacy aliases instead of keeping compatibility shims.
-
-## Phase 4 — Runtime config
-
-1. Add `topology` to runtime config model.
-2. Read client topology env key from the spec (`envKeys.clientTopology`).
-3. Align default public URLs with cloud production profile env.
-
-## Phase 5 — CI and packaging
-
-1. Move gateway package targets into `specs/topology.spec.json`.
-2. Update `sdkwork.workflow.json` profiles to `standalone` and `cloud-config`.
-3. Replace cloud gateway binary packaging with config bundle scripts in the app repo.
-
-## Phase 6 — Verification
-
-Application repo:
-
-```bash
-pnpm <app>:dev --help
-pnpm gateway:matrix
-cargo test / node test for script contract checks
-```
-
-Framework repo:
-
-```bash
-node ../sdkwork-app-topology/scripts/sdkwork-topology.mjs validate --root . --spec specs/topology.spec.json
-```
-
-## Reference
-
-See `../sdkwork-drive` after migration:
-
-- `specs/drive-topology.spec.json`
-- `scripts/lib/drive-topology.mjs`
-- `scripts/drive-dev.mjs`
-- `docs/drive-topology-standard.md`
+Each wave requires review and passing evidence before the next application is
+modified. The audit command is read-only; `--fail-on-debt` becomes a gate only
+for waves already declared migrated.

@@ -4,6 +4,7 @@ import { createGatewayHelpers } from './gateway.mjs';
 import { createIamDatabaseHelpers } from './iam-database.mjs';
 import { loadEnvFile, mergeRuntimeEnv, normalizeText } from './env-file.mjs';
 import { createTopologyRuntimeV2 } from './runtime-v2.mjs';
+import { createTopologyRuntimeV5 } from './runtime-v5.mjs';
 import {
   DEFAULT_PROFILES,
   DEFAULT_TOPOLOGIES,
@@ -107,7 +108,8 @@ function createTopologyRuntimeV1(spec, repoRoot) {
   };
 }
 
-export function createTopologyRuntime(spec, repoRoot) {
+export function createTopologyRuntime(spec, repoRoot, specPath = path.join(repoRoot, 'specs/topology.spec.json')) {
+  if (spec.schemaVersion === 5) return createTopologyRuntimeV5(spec, repoRoot, specPath);
   if (spec.schemaVersion === 2 || spec.schemaVersion === 4) {
     return createTopologyRuntimeV2(spec, repoRoot);
   }

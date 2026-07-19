@@ -1,88 +1,104 @@
 {
-    "schemaVersion":  1,
-    "kind":  "sdkwork.app.topology",
-    "appId":  "sdkwork-drive",
-    "profileRoot":  "etc/topology",
-    "profilePattern":  "{topology}.{profile}.env",
-    "vocabulary":  {
-                       "topology":  {
-                                        "allowed":  [
-                                                        "standalone",
-                                                        "cloud"
-                                                    ],
-                                        "description":  "Drive API deployment topology."
-                                    },
-                       "profile":  {
-                                       "allowed":  [
-                                                       "development",
-                                                       "production"
-                                                   ],
-                                       "description":  "Runtime profile loaded from etc/topology/{topology}.{profile}.env"
-                                   }
-                   },
-    "defaults":  {
-                     "developmentTopology":  "standalone",
-                     "desktopBuildTopology":  "cloud",
-                     "gatewayBind":  "127.0.0.1:3900"
-                 },
-    "envKeys":  {
-                    "topology":  "SDKWORK_DRIVE_TOPOLOGY",
-                    "profile":  "SDKWORK_DRIVE_PROFILE",
-                    "gatewayAutostart":  "SDKWORK_DRIVE_GATEWAY_AUTOSTART",
-                    "standaloneGatewayBind":  "SDKWORK_DRIVE_STANDALONE_GATEWAY_BIND",
-                    "standaloneGatewayConfig":  "SDKWORK_DRIVE_STANDALONE_GATEWAY_CONFIG",
-                    "standaloneGatewayEnvironment":  "SDKWORK_DRIVE_STANDALONE_GATEWAY_ENVIRONMENT",
-                    "cloudGatewayBind":  "SDKWORK_API_CLOUD_GATEWAY_BIND",
-                    "cloudGatewayConfig":  "SDKWORK_API_CLOUD_GATEWAY_CONFIG",
-                    "clientTopology":  "VITE_DRIVE_PC_TOPOLOGY",
-                    "clientApiGatewayBaseUrl":  "VITE_DRIVE_PC_API_GATEWAY_BASE_URL",
-                    "apiGatewayBaseUrl":  "SDKWORK_DRIVE_API_GATEWAY_BASE_URL"
-                },
-    "database":  {
-                     "appPrefix":  "SDKWORK_DRIVE"
-                 },
-    "components":  {
-                       "standaloneGateway":  {
-                                                 "crate":  "sdkwork-drive-standalone-gateway",
-                                                 "binary":  "sdkwork-drive-standalone-gateway",
-                                                 "configGlob":  "etc/sdkwork-drive-standalone-gateway.{profile}.toml"
-                                             },
-                       "cloudGateway":  {
-                                            "crate":  "sdkwork-api-cloud-gateway",
-                                            "binary":  "sdkwork-api-cloud-gateway",
-                                            "repository":  "sdkwork-api-cloud-gateway",
-                                            "configGlob":  "etc/sdkwork-api-cloud-gateway.drive.{profile}.toml"
-                                        }
-                   },
-    "packaging":  {
-                      "cloudConfigFiles":  [
-                                               "sdkwork-api-cloud-gateway.drive.development.toml",
-                                               "sdkwork-api-cloud-gateway.drive.production.toml"
-                                           ],
-                      "targets":  [
-                                      {
-                                          "id":  "linux-x64-standalone-gateway-tar-gz",
-                                          "profile":  "standalone",
-                                          "platform":  "linux",
-                                          "architecture":  "x64",
-                                          "formats":  [
-                                                          "tar.gz"
-                                                      ],
-                                          "runner":  "ubuntu-24.04",
-                                          "rustTarget":  "x86_64-unknown-linux-gnu",
-                                          "outputGlob":  "dist/standalone-gateway/sdkwork-drive-standalone-gateway-*-linux-x64-standalone-gateway.tar.gz"
-                                      },
-                                      {
-                                          "id":  "cloud-config-bundle-tar-gz",
-                                          "profile":  "cloud-config",
-                                          "platform":  "all",
-                                          "architecture":  "all",
-                                          "formats":  [
-                                                          "tar.gz"
-                                                      ],
-                                          "runner":  "ubuntu-24.04",
-                                          "outputGlob":  "dist/cloud-config/sdkwork-drive-api-gateway-config-*.tar.gz"
-                                      }
-                                  ]
-                  }
+  "schemaVersion": 5,
+  "kind": "sdkwork.app.topology",
+  "appId": "sdkwork-drive",
+  "archetype": "application-http-gateway",
+  "profileRoot": "examples/sdkwork-drive/etc/topology",
+  "profilePattern": "{deploymentProfile}.{environment}.env",
+  "vocabulary": {
+    "deploymentProfile": { "allowed": ["standalone", "cloud"] },
+    "environment": { "allowed": ["development", "production"] }
+  },
+  "cloudIngress": {
+    "strategy": "platform-collapsed",
+    "platformGateway": "sdkwork-api-cloud-gateway"
+  },
+  "defaults": {
+    "developmentProfileId": "standalone.development",
+    "productionProfileId": "cloud.production"
+  },
+  "profileFiles": {
+    "standalone.development": "examples/sdkwork-drive/etc/topology/standalone.development.env",
+    "standalone.production": "examples/sdkwork-drive/etc/topology/standalone.production.env",
+    "cloud.development": "examples/sdkwork-drive/etc/topology/cloud.development.env",
+    "cloud.production": "examples/sdkwork-drive/etc/topology/cloud.production.env"
+  },
+  "envKeys": {
+    "deploymentProfile": "SDKWORK_DRIVE_DEPLOYMENT_PROFILE",
+    "environment": "SDKWORK_DRIVE_ENVIRONMENT",
+    "profileId": "SDKWORK_DRIVE_PROFILE_ID",
+    "clientDeploymentProfile": "VITE_SDKWORK_DRIVE_DEPLOYMENT_PROFILE"
+  },
+  "database": { "appPrefix": "SDKWORK_DRIVE" },
+  "surfaces": {
+    "application.public-ingress": {
+      "connectivityPlane": "application",
+      "protocols": ["http"],
+      "bindEnv": "SDKWORK_DRIVE_APPLICATION_PUBLIC_INGRESS_BIND",
+      "httpUrlEnv": "SDKWORK_DRIVE_APPLICATION_PUBLIC_HTTP_URL",
+      "clientHttpEnv": "VITE_SDKWORK_DRIVE_APPLICATION_PUBLIC_HTTP_URL"
+    },
+    "platform.api-gateway": {
+      "connectivityPlane": "platform",
+      "protocols": ["http"],
+      "owner": "sdkwork-api-cloud-gateway",
+      "httpUrlEnv": "SDKWORK_DRIVE_PLATFORM_API_GATEWAY_HTTP_URL",
+      "clientHttpEnv": "VITE_SDKWORK_DRIVE_PLATFORM_API_GATEWAY_HTTP_URL",
+      "autostartEnv": "SDKWORK_DRIVE_PLATFORM_API_GATEWAY_AUTOSTART"
+    }
+  },
+  "components": {
+    "standaloneGateway": {
+      "crate": "sdkwork-drive-standalone-gateway",
+      "binary": "sdkwork-drive-standalone-gateway"
+    },
+    "cloudGateway": {
+      "crate": "sdkwork-api-cloud-gateway",
+      "binary": "sdkwork-api-cloud-gateway",
+      "repository": "sdkwork-api-cloud-gateway",
+      "configGlob": "etc/sdkwork-api-cloud-gateway.drive.{profile}.toml"
+    }
+  },
+  "orchestration": {
+    "profiles": {
+      "standalone.development": {
+        "processes": [{
+          "id": "standalone-gateway",
+          "role": "standalone-gateway",
+          "crate": "sdkwork-drive-standalone-gateway",
+          "binary": "sdkwork-drive-standalone-gateway",
+          "required": true
+        }],
+        "healthSurfaces": ["application.public-ingress"]
+      },
+      "standalone.production": { "processes": [], "healthSurfaces": [] },
+      "cloud.development": {
+        "processes": [{ "id": "drive-browser", "role": "client", "script": "_sdkwork:client:browser" }],
+        "healthSurfaces": ["application.public-ingress", "platform.api-gateway"]
+      },
+      "cloud.production": { "processes": [], "healthSurfaces": [] }
+    }
+  },
+  "packaging": {
+    "targets": [
+      {
+        "id": "linux-x64-standalone-server-tar-gz",
+        "deploymentProfile": "standalone",
+        "runtimeTarget": "server",
+        "profile": "server",
+        "platform": "linux",
+        "architecture": "x64",
+        "formats": ["tar.gz"]
+      },
+      {
+        "id": "container-x64-cloud-container-oci",
+        "deploymentProfile": "cloud",
+        "runtimeTarget": "container",
+        "profile": "container",
+        "platform": "container",
+        "architecture": "x64",
+        "formats": ["oci"]
+      }
+    ]
+  }
 }

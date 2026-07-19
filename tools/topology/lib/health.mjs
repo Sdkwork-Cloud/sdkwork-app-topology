@@ -1,9 +1,7 @@
 import net from 'node:net';
 
-import { createRequire } from 'node:module';
-
-const require = createRequire(import.meta.url);
-const http = require('http');
+import http from 'node:http';
+import https from 'node:https';
 
 export function isHttpHealthy(url, path = '/healthz', timeoutMs = 2000) {
   return new Promise((resolve) => {
@@ -14,7 +12,8 @@ export function isHttpHealthy(url, path = '/healthz', timeoutMs = 2000) {
       resolve(false);
       return;
     }
-    const request = http.get(
+    const transport = parsed.protocol === 'https:' ? https : http;
+    const request = transport.get(
       {
         hostname: parsed.hostname,
         port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80),

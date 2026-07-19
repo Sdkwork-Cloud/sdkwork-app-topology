@@ -1,139 +1,58 @@
-# SDKWork App Topology Standard
+# SDKWork Topology V5 Runtime
 
-Version: 2.0 (platform); framework library still supports v1 Drive specs  
-Scope: cross-application deployment topology for SDKWork apps with PC/H5/desktop surfaces
+Topology v5 is the application-owned machine declaration consumed by the
+shared local lifecycle framework. Normative vocabulary lives in
+`../../sdkwork-specs/APP_RUNTIME_TOPOLOGY_SPEC.md`; this document explains the
+framework implementation.
 
-**Platform naming authority:** `../../sdkwork-specs/APP_RUNTIME_TOPOLOGY_NAMING.md`  
-**Platform connectivity standard:** `../../sdkwork-specs/APP_RUNTIME_TOPOLOGY_SPEC.md`
+## Resolution
 
-This document describes the **framework package** layout. Vocabulary for new applications uses v2 (`hosting`, `serviceLayout`, `connectivityPlane`). Drive continues on v1 (`topology`, `profile`) until migrated.
+The framework resolves these authorities in order:
 
-## 1. Purpose
+1. `sdkwork.app.config.json` for application identity and supported profiles.
+2. `specs/topology.spec.json` for surfaces, processes, roles, and profile files.
+3. `etc/topology/<profile-id>.env` for concrete URLs, binds, and environment values.
+4. `package.json` private `_sdkwork:*` hooks or process commands for application-specific execution.
+5. `sdkwork.workflow.json` for package, publish, and CI deployment lifecycle.
+6. `deployments/deploy.yaml` for deployment execution.
 
-SDKWork applications frequently ship multiple deployment shapes:
+No framework layer owns application-specific source paths, Cargo workspace
+members, Flutter flavors, Gradle tasks, Xcode schemes, or Vite package names.
+Those remain private hook/process facts.
 
-- local standalone loop (embedded IAM + app APIs via standalone gateway)
-- cloud unified API surface (`sdkwork-api-cloud-gateway`)
+## Development Profiles
 
-This standard defines one axis — **`topology`** — and one profile system — **`development` / `production`** — so developers, scripts, CI, runtime config, and documentation use the same words everywhere.
+`standalone.development` starts exactly one standalone application gateway when
+the app serves HTTP, then declared dependencies and clients. Health checks run
+before clients.
 
-## 2. Required Vocabulary
+`cloud.development` starts clients and explicit tunnels only. Required remote
+surfaces must have concrete deployed URLs. Under `platform-collapsed`,
+application and platform HTTP surfaces use the same origin.
 
-| Key | Allowed values |
-| --- | --- |
-| topology | `standalone`, `cloud` |
-| profile | `development`, `production` |
+## Resolved Plan
 
-Forbidden public synonyms:
+The v1 runtime-plan output records:
 
-- `gateway-mode`
-- `standalone-gateway` as a topology name (allowed only as packaging profile slug)
-- duplicated per-script URL blocks
+- active profile, environment, and runtime target;
+- local processes and canonical roles;
+- local gateway and data stores;
+- remote surfaces and Base URL provenance;
+- health checks and config sources;
+- forbidden cloud-development roles and any violating processes.
 
-## 3. Required Files In Each Application
+The CLI fails before side effects when plan validation finds a forbidden role,
+missing endpoint, loopback endpoint without a tunnel, or different collapsed
+origins.
 
-```text
-specs/topology.spec.json
-etc/topology/standalone.development.env
-etc/topology/standalone.production.env
-etc/topology/cloud.development.env
-etc/topology/cloud.production.env
-docs/topology-standard.md
-scripts/lib/<app>-topology.mjs
-```
+## Lifecycle Facade
 
-Optional but recommended:
+Public pnpm commands call `sdkwork-app`. Application-specific implementations
+are private `_sdkwork:*` scripts. This separation allows Rust, Node, Vite,
+Tauri, Flutter, Gradle, Xcode, Harmony, and mini-program roots to share the same
+public lifecycle without pretending their build commands are identical.
 
-- `.env.postgres.example` when IAM login uses PostgreSQL
-- gateway TOML configs referenced by the topology spec
-
-## 4. Topology Spec
-
-Each application commits `specs/topology.spec.json` with:
-
-```json
-{
-  "schemaVersion": 1,
-  "kind": "sdkwork.app.topology",
-  "appId": "sdkwork-drive",
-  "vocabulary": { "topology": { "allowed": ["standalone", "cloud"] }, "profile": { "allowed": ["development", "production"] } },
-  "defaults": { "developmentTopology": "standalone", "buildTopology": "cloud" },
-  "envKeys": { "topology": "SDKWORK_DRIVE_TOPOLOGY", "clientTopology": "VITE_DRIVE_PC_TOPOLOGY" },
-  "packaging": { "targets": [] }
-}
-```
-
-Validate with:
-
-```bash
-node ../sdkwork-app-topology/scripts/sdkwork-topology.mjs validate --root .
-```
-
-JSON Schema: `../sdkwork-app-topology/specs/topology.schema.json`
-
-## 5. Profile Env Rules
-
-Profiles live under `etc/topology/{topology}.{profile}.env`.
-
-Rules:
-
-1. Scripts load profiles through `@sdkwork/app-topology`; they do not hardcode URLs.
-2. Profile files declare both server-side keys (`SDKWORK_*`) and client-side keys (`VITE_*`, `DART_*`, etc.).
-3. CLI `--topology` selects the profile family; `--profile` is implied by the command (`development` for dev scripts, `production` for build scripts).
-4. Autostart is controlled by `<APP>_GATEWAY_AUTOSTART`, default `true`.
-
-## 6. Command Naming Standard
-
-Application root `package.json` scripts SHOULD use:
-
-| Script | Meaning |
-| --- | --- |
-| `<app>:dev` | browser dev, default topology |
-| `<app>:dev:cloud` | browser dev, cloud topology |
-| `<app>:dev:desktop` | desktop dev, default topology |
-| `<app>:build` | release build, default topology (usually cloud) |
-| `<app>:build:standalone` | release build, standalone topology |
-| `gateway:standalone:run` | run standalone gateway |
-| `gateway:standalone:pack` | package standalone gateway binary |
-| `gateway:cloud:bundle` | bundle cloud gateway configs only |
-
-Examples for Drive are implemented in `../sdkwork-drive/package.json`.
-
-## 7. Gateway Ownership
-
-| Topology | Gateway binary | Config owner | Binary owner |
-| --- | --- | --- | --- |
-| standalone | app standalone gateway crate | application repo | application repo |
-| cloud | `sdkwork-api-cloud-gateway` | application repo (route/config bundle) | `sdkwork-api-cloud-gateway` repo |
-
-## 8. Runtime Config Integration
-
-Client runtime config MUST expose topology explicitly:
-
-- PC/React: `VITE_<APP>_TOPOLOGY`
-- runtime factory reads topology before inferring default API URLs
-
-Inference rule:
-
-- `local` / `test` deployment modes → standalone localhost defaults
-- other deployment modes → cloud public defaults unless profile env overrides
-
-## 9. CI Matrix Ownership
-
-Packaging targets belong in `specs/topology.spec.json` → `packaging.targets`.
-
-`sdkwork.workflow.json` in the application repo MUST reference the same target ids and profiles.
-
-Use `@sdkwork/app-topology` to print the matrix and avoid manual duplication.
-
-## 10. Framework Repository
-
-Implementation and CLI live in `../sdkwork-app-topology`.
-
-Applications depend on it via sibling path:
-
-```json
-"@sdkwork/app-topology": "file:../sdkwork-app-topology"
-```
-
-Published registry consumption is supported later; sibling path is the SDKWork workspace default.
+The framework directly owns selection and validation; private hooks own only
+the final language/tool invocation. Release and deployment phases are delegated
+to their canonical framework engines rather than copied into application
+scripts.
