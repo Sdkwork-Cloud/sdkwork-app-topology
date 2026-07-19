@@ -158,11 +158,11 @@ test('loads sdkwork-im v5 topology spec and resolves standalone and cloud surfac
     'https://api-dev.sdkwork.com',
   );
   assert.deepEqual(
-    runtime.resolvePlan('standalone.development', 'h5').localProcesses.map((entry) => entry.id),
+    runtime.resolvePlan('standalone.development', 'browser', 'h5').localProcesses.map((entry) => entry.id),
     ['standalone-gateway', 'im-h5'],
   );
   assert.deepEqual(
-    runtime.resolvePlan('cloud.development', 'h5').localProcesses.map((entry) => entry.id),
+    runtime.resolvePlan('cloud.development', 'browser', 'h5').localProcesses.map((entry) => entry.id),
     ['im-h5'],
   );
 });
