@@ -67,6 +67,9 @@ test('requires private development hooks to provide a scoped stop hook', () => {
 });
 
 test('resolves script, command, and cargo topology processes without a shell', () => {
+  assert.deepEqual(resolveProcessInvocation({ package: '@sdkwork/demo-pc', script: 'dev' }), {
+    command: 'pnpm', args: ['--filter', '@sdkwork/demo-pc', 'run', 'dev'],
+  });
   assert.deepEqual(resolveProcessInvocation({ script: 'dev:client' }), { command: 'pnpm', args: ['run', 'dev:client'] });
   assert.deepEqual(resolveProcessInvocation({ command: 'flutter', args: ['run'] }), { command: 'flutter', args: ['run'] });
   assert.deepEqual(resolveProcessInvocation({ crate: 'sdkwork-demo', binary: 'sdkwork-demo' }), {

@@ -14,7 +14,8 @@
     "./schema": "./specs/topology.schema.v5.json",
     "./schema/v1": "./specs/topology.schema.json",
     "./schema/v2": "./specs/topology.schema.v2.json",
-    "./lifecycle": "./tools/topology/lib/lifecycle.mjs"
+    "./lifecycle": "./tools/topology/lib/lifecycle.mjs",
+    "./network-access": "./tools/topology/lib/network-access.mjs"
   },
   "bin": {
     "sdkwork-topology": "./scripts/sdkwork-topology.mjs",

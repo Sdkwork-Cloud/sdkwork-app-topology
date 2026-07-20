@@ -195,10 +195,6 @@ async function initApp(args) {
       deploymentProfile: { allowed: ['standalone', 'cloud'] },
       environment: { allowed: ['development', 'production'] },
     },
-    cloudIngress: {
-      strategy: 'platform-collapsed',
-      platformGateway: 'sdkwork-api-cloud-gateway',
-    },
     defaults: {
       developmentProfileId: 'standalone.development',
       productionProfileId: 'cloud.production',
@@ -229,20 +225,14 @@ async function initApp(args) {
       'platform.api-gateway': {
         connectivityPlane: 'platform',
         protocols: ['http'],
-        owner: 'sdkwork-api-cloud-gateway',
         httpUrlEnv: `${envPrefix}_PLATFORM_API_GATEWAY_HTTP_URL`,
         clientHttpEnv: `VITE_${envPrefix}_PLATFORM_API_GATEWAY_HTTP_URL`,
-        autostartEnv: `${envPrefix}_PLATFORM_API_GATEWAY_AUTOSTART`,
       },
     },
     components: {
       standaloneGateway: {
-        crate: `${appId}-standalone-gateway`,
-        binary: `${appId}-standalone-gateway`,
-      },
-      cloudGateway: {
-        repository: 'sdkwork-api-cloud-gateway',
-        configGlob: `etc/sdkwork-api-cloud-gateway.${appId.replace(/^sdkwork-/, '')}.{profile}.toml`,
+        crate: `sdkwork-api-${appCode}-standalone-gateway`,
+        binary: `sdkwork-api-${appCode}-standalone-gateway`,
       },
     },
     orchestration: {
@@ -250,9 +240,9 @@ async function initApp(args) {
         'standalone.development': {
           processes: [{
             id: 'standalone-gateway',
-            role: 'standalone-gateway',
-            crate: `${appId}-standalone-gateway`,
-            binary: `${appId}-standalone-gateway`,
+            role: 'api-standalone-gateway',
+            crate: `sdkwork-api-${appCode}-standalone-gateway`,
+            binary: `sdkwork-api-${appCode}-standalone-gateway`,
             required: true,
           }],
           healthSurfaces: ['application.public-ingress'],

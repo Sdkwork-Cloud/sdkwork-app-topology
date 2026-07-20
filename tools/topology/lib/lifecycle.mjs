@@ -37,6 +37,12 @@ export function privateLifecycleScript(command, deploymentProfile) {
 }
 
 export function resolveProcessInvocation(process) {
+  if (process.package && process.script) {
+    return {
+      command: 'pnpm',
+      args: ['--filter', process.package, 'run', process.script],
+    };
+  }
   if (process.script) return { command: 'pnpm', args: ['run', process.script] };
   if (process.command) return { command: process.command, args: process.args ?? [] };
   if (process.crate) {

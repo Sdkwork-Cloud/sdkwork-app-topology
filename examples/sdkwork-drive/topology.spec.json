@@ -9,10 +9,6 @@
     "deploymentProfile": { "allowed": ["standalone", "cloud"] },
     "environment": { "allowed": ["development", "production"] }
   },
-  "cloudIngress": {
-    "strategy": "platform-collapsed",
-    "platformGateway": "sdkwork-api-cloud-gateway"
-  },
   "defaults": {
     "developmentProfileId": "standalone.development",
     "productionProfileId": "cloud.production"
@@ -41,22 +37,14 @@
     "platform.api-gateway": {
       "connectivityPlane": "platform",
       "protocols": ["http"],
-      "owner": "sdkwork-api-cloud-gateway",
       "httpUrlEnv": "SDKWORK_DRIVE_PLATFORM_API_GATEWAY_HTTP_URL",
-      "clientHttpEnv": "VITE_SDKWORK_DRIVE_PLATFORM_API_GATEWAY_HTTP_URL",
-      "autostartEnv": "SDKWORK_DRIVE_PLATFORM_API_GATEWAY_AUTOSTART"
+      "clientHttpEnv": "VITE_SDKWORK_DRIVE_PLATFORM_API_GATEWAY_HTTP_URL"
     }
   },
   "components": {
     "standaloneGateway": {
-      "crate": "sdkwork-drive-standalone-gateway",
-      "binary": "sdkwork-drive-standalone-gateway"
-    },
-    "cloudGateway": {
-      "crate": "sdkwork-api-cloud-gateway",
-      "binary": "sdkwork-api-cloud-gateway",
-      "repository": "sdkwork-api-cloud-gateway",
-      "configGlob": "etc/sdkwork-api-cloud-gateway.drive.{profile}.toml"
+      "crate": "sdkwork-api-drive-standalone-gateway",
+      "binary": "sdkwork-api-drive-standalone-gateway"
     }
   },
   "orchestration": {
@@ -64,9 +52,9 @@
       "standalone.development": {
         "processes": [{
           "id": "standalone-gateway",
-          "role": "standalone-gateway",
-          "crate": "sdkwork-drive-standalone-gateway",
-          "binary": "sdkwork-drive-standalone-gateway",
+          "role": "api-standalone-gateway",
+          "crate": "sdkwork-api-drive-standalone-gateway",
+          "binary": "sdkwork-api-drive-standalone-gateway",
           "required": true
         }],
         "healthSurfaces": ["application.public-ingress"]

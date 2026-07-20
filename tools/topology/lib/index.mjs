@@ -29,6 +29,14 @@ export {
 export { isTcpPortReachable, DEFAULT_POSTGRES_REACHABILITY_TIMEOUT_MS } from './postgres.mjs';
 
 export {
+  formatNetworkAccessLines,
+  formatResolvedNetworkAccessLines,
+  resolveNetworkAccessSummary,
+  resolveNetworkAccessUrls,
+  resolveNonLoopbackIpv4Addresses,
+} from './network-access.mjs';
+
+export {
   buildPostgresDatabaseUrl,
   resolveClawDatabaseEnv,
   resolveClawDatabaseUrlFromEnv,

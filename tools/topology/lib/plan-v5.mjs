@@ -1,7 +1,7 @@
 import path from 'node:path';
 
 const FORBIDDEN_CLOUD_DEVELOPMENT_ROLES = Object.freeze([
-  'standalone-gateway', 'application-cloud-gateway', 'platform-gateway',
+  'api-standalone-gateway',
   'api-listener', 'database', 'redis', 'migration', 'seed', 'worker',
 ]);
 
@@ -11,14 +11,6 @@ function remoteUrl(value) {
     return !['localhost', '127.0.0.1', '0.0.0.0', '::1'].includes(host);
   } catch {
     return false;
-  }
-}
-
-function origin(value) {
-  try {
-    return new URL(value).origin.toLowerCase();
-  } catch {
-    return null;
   }
 }
 
@@ -48,9 +40,7 @@ export function createResolvedRuntimePlan(runtime, profileId, runtimeTarget, cli
     endpointProvenance[surfaceId] = { source: profileSource, key: surface.httpUrlEnv };
     if (remoteUrl(value)) remoteSurfaces.push(surfaceId);
   }
-  const gateways = processes.filter((process) => [
-    'standalone-gateway', 'application-cloud-gateway', 'platform-gateway',
-  ].includes(process.role));
+  const gateways = processes.filter((process) => process.role === 'api-standalone-gateway');
   const forbiddenProcesses = deploymentProfile === 'cloud' && environment === 'development'
     ? processes.filter((process) => FORBIDDEN_CLOUD_DEVELOPMENT_ROLES.includes(process.role)).map((process) => process.id)
     : [];
@@ -63,12 +53,6 @@ export function createResolvedRuntimePlan(runtime, profileId, runtimeTarget, cli
     for (const [surfaceId, value] of Object.entries(resolvedBaseUrls)) {
       if (!remoteUrl(value) && !tunnel) throw new Error(`${profileId} ${surfaceId} must use a deployed URL or explicit tunnel`);
     }
-  }
-  if (runtime.spec.cloudIngress?.strategy === 'platform-collapsed'
-    && resolvedBaseUrls['application.public-ingress']
-    && resolvedBaseUrls['platform.api-gateway']
-    && origin(resolvedBaseUrls['application.public-ingress']) !== origin(resolvedBaseUrls['platform.api-gateway'])) {
-    throw new Error('platform-collapsed application and platform surfaces must share one origin');
   }
   return {
     schemaVersion: 1,

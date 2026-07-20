@@ -12,7 +12,7 @@ repositories.
 
 | Component | Responsibility |
 | --- | --- |
-| `sdkwork-app-topology` | `sdkwork-app` public lifecycle facade, topology v5 validation, environment loading, resolved runtime plans, development orchestration |
+| `sdkwork-app-topology` | `sdkwork-app` public lifecycle facade, topology v5 validation, environment loading, resolved runtime plans, development orchestration, and local/network access URL projection |
 | `sdkwork-github-workflow` | package matrix, lifecycle phases, signing, SBOM, publication, deployment matrix, reusable GitHub workflow |
 | `sdkwork-specs/tools/deployctl.mjs` | typed deploy plans, artifact-evidence verification, nginx apply and rollback |
 
@@ -107,6 +107,38 @@ owned process tree and falls back to the registered direct child PIDs plus the
 supervisor when the operating-system process-tree service is unavailable.
 `doctor` composes lifecycle facade, app-manifest, source-config, topology v5,
 workflow, and deploy-manifest validation.
+
+## Network Access Output
+
+Development hosts import the narrow network projection component instead of
+copying operating-system interface discovery or URL formatting:
+
+```js
+import {
+  formatNetworkAccessLines,
+  formatResolvedNetworkAccessLines,
+  resolveNetworkAccessSummary,
+} from '@sdkwork/app-topology/network-access';
+
+const lines = formatNetworkAccessLines({
+  host: '0.0.0.0',
+  port: 3001,
+  pathname: '/',
+  prefix: '[application]   ',
+  unavailableText: 'unavailable',
+});
+```
+
+The component owns non-loopback IPv4 discovery, de-duplication, deterministic
+ordering, listener-scope handling, URL projection, and one-link-per-line
+formatting. Applications own only their log prefix, headings, labels, and
+product-specific readiness text. A loopback-only listener never advertises LAN
+URLs that other devices cannot reach.
+
+Applications with stricter address or security policy can retain their own
+URL selection and pass the resulting `{ localUrl, networkUrls }` summary to
+`formatResolvedNetworkAccessLines`. This keeps policy application-owned while
+reusing the standard one-link-per-line presentation.
 
 Release commands delegate to `sdkwork-github-workflow`; deploy commands
 delegate to deployctl. Side-effecting operations retain the explicit profile,

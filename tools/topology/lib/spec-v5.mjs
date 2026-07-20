@@ -2,7 +2,7 @@ import { normalizeText } from './env-file.mjs';
 import { parseProfileId } from './profile-id.mjs';
 
 export const PROCESS_ROLES = Object.freeze([
-  'client', 'standalone-gateway', 'application-cloud-gateway', 'platform-gateway',
+  'client', 'api-standalone-gateway',
   'api-listener', 'database', 'redis', 'migration', 'seed', 'worker', 'tunnel',
 ]);
 
@@ -16,10 +16,6 @@ export const RUNTIME_TARGETS = Object.freeze([
 export const CLIENT_ARCHITECTURES = Object.freeze([
   'pc-web', 'h5', 'capacitor', 'flutter', 'tauri', 'electron',
   'android-native', 'ios-native', 'harmony-native', 'mini-program',
-]);
-
-const CLOUD_INGRESS_STRATEGIES = new Set([
-  'platform-collapsed', 'dedicated-application', 'edge-split',
 ]);
 
 function assertProfileId(profileId, specPath) {
@@ -53,23 +49,8 @@ export function validateTopologySpecV5(spec, specPath = 'topology.spec.json') {
     throw new Error(`${specPath} vocabulary.environment.allowed must be a non-empty array`);
   }
 
-  const ingress = spec.cloudIngress;
-  if (!ingress || !CLOUD_INGRESS_STRATEGIES.has(ingress.strategy)) {
-    throw new Error(`${specPath} cloudIngress.strategy is required`);
-  }
-  if (ingress.platformGateway !== 'sdkwork-api-cloud-gateway') {
-    throw new Error(`${specPath} cloudIngress.platformGateway must be sdkwork-api-cloud-gateway`);
-  }
-  if (ingress.strategy === 'platform-collapsed' && (ingress.applicationGateway || ingress.edgeGateway)) {
-    throw new Error(`${specPath} platform-collapsed forbids applicationGateway and edgeGateway`);
-  }
-  if (ingress.strategy === 'dedicated-application'
-    && (!normalizeText(ingress.applicationGateway) || !normalizeText(ingress.decisionRef))) {
-    throw new Error(`${specPath} dedicated-application requires applicationGateway and decisionRef`);
-  }
-  if (ingress.strategy === 'edge-split'
-    && (!normalizeText(ingress.edgeGateway) || !normalizeText(ingress.decisionRef))) {
-    throw new Error(`${specPath} edge-split requires edgeGateway and decisionRef`);
+  if (spec.cloudIngress !== undefined) {
+    throw new Error(`${specPath} cloudIngress is retired; declare remote surface URLs instead`);
   }
 
   const profileFiles = spec.profileFiles;
@@ -121,8 +102,8 @@ export function validateTopologySpecV5(spec, specPath = 'topology.spec.json') {
   }
   const standalone = orchestration['standalone.development'];
   if (standalone) {
-    const gateways = (standalone.processes ?? []).filter((process) => process.role === 'standalone-gateway');
-    if (gateways.length !== 1) throw new Error(`${specPath} standalone.development requires exactly one standalone-gateway`);
+    const gateways = (standalone.processes ?? []).filter((process) => process.role === 'api-standalone-gateway');
+    if (gateways.length !== 1) throw new Error(`${specPath} standalone.development requires exactly one api-standalone-gateway`);
   }
   return spec;
 }

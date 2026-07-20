@@ -19,7 +19,6 @@ function fixture() {
       deploymentProfile: { allowed: ['standalone', 'cloud'] },
       environment: { allowed: ['development', 'production'] },
     },
-    cloudIngress: { strategy: 'platform-collapsed', platformGateway: 'sdkwork-api-cloud-gateway' },
     profileFiles: {
       'standalone.development': 'etc/topology/standalone.development.env',
       'cloud.development': 'etc/topology/cloud.development.env',
@@ -40,7 +39,7 @@ function fixture() {
     orchestration: {
       profiles: {
         'standalone.development': {
-          processes: [{ id: 'standalone-gateway', role: 'standalone-gateway', crate: 'sdkwork-demo-standalone-gateway' }],
+          processes: [{ id: 'standalone-gateway', role: 'api-standalone-gateway', crate: 'sdkwork-demo-standalone-gateway' }],
           healthSurfaces: ['application.public-ingress'],
         },
         'cloud.development': {
@@ -102,7 +101,7 @@ test('filters browser clients by selected client architecture', () => {
   assert.throws(() => validateTopologySpec(spec, specPath), /canonical client architectures/u);
 });
 
-test('rejects retired service layouts and different collapsed origins', () => {
+test('rejects retired service layouts and allows independent remote surface origins', () => {
   const { root, spec, specPath } = fixture();
   spec.vocabulary.serviceLayout = { allowed: ['split-services'] };
   assert.throws(() => validateTopologySpec(spec, specPath), /retired/u);
@@ -114,7 +113,23 @@ test('rejects retired service layouts and different collapsed origins', () => {
     '',
   ].join('\n'));
   const runtime = createTopologyRuntime(spec, root, specPath);
-  assert.throws(() => runtime.resolvePlan('cloud.development', 'browser'), /share one origin/u);
+  const plan = runtime.resolvePlan('cloud.development', 'browser');
+  assert.equal(plan.resolvedBaseUrls['application.public-ingress'], 'https://app.dev.sdkwork.com');
+  assert.equal(plan.resolvedBaseUrls['platform.api-gateway'], 'https://api.dev.sdkwork.com');
+});
+
+test('allows standalone application and platform surfaces to use different origins', () => {
+  const { root, spec, specPath } = fixture();
+  fs.writeFileSync(path.join(root, 'etc', 'topology', 'standalone.development.env'), [
+    'SDKWORK_DEMO_PROFILE_ID=standalone.development',
+    'APP_URL=http://127.0.0.1:8080',
+    'PLATFORM_URL=http://127.0.0.1:3900',
+    '',
+  ].join('\n'));
+  const runtime = createTopologyRuntime(spec, root, specPath);
+  const plan = runtime.resolvePlan('standalone.development', 'server');
+  assert.equal(plan.resolvedBaseUrls['application.public-ingress'], 'http://127.0.0.1:8080');
+  assert.equal(plan.resolvedBaseUrls['platform.api-gateway'], 'http://127.0.0.1:3900');
 });
 
 test('bundled topology v5 schema stays aligned with the canonical standards schema', () => {
