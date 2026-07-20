@@ -1,6 +1,28 @@
 import { networkInterfaces as readNetworkInterfaces } from 'node:os';
 
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
+const DEFAULT_ADDRESS_FAMILIES = Object.freeze(['IPv4', 'IPv6']);
+
+function normalizeAddressFamily(value) {
+  const family = String(value ?? '').trim().toLowerCase();
+  if (family === '4' || family === 'ipv4') {
+    return 'IPv4';
+  }
+  if (family === '6' || family === 'ipv6') {
+    return 'IPv6';
+  }
+  return undefined;
+}
+
+function normalizeAddressFamilies(families) {
+  const values = Array.isArray(families) ? families : [families];
+  return new Set(values.map(normalizeAddressFamily).filter(Boolean));
+}
+
+export function formatNetworkUrlHost(address) {
+  const normalized = String(address).trim().replace(/^\[|\]$/gu, '');
+  return normalized.includes(':') ? `[${normalized}]` : normalized;
+}
 
 function normalizePort(value) {
   const port = Number.parseInt(String(value ?? '').trim(), 10);
@@ -22,27 +44,53 @@ function normalizePathname(value) {
   return pathname.startsWith('/') ? pathname : `/${pathname}`;
 }
 
-export function resolveNonLoopbackIpv4Addresses(
-  networkInterfaces = readNetworkInterfaces(),
+export function resolveNetworkInterfaceSnapshot(
+  networkInterfaces = readNetworkInterfaces,
 ) {
-  const addresses = [];
-  for (const entries of Object.values(networkInterfaces ?? {})) {
+  const snapshot = typeof networkInterfaces === 'function'
+    ? networkInterfaces()
+    : networkInterfaces;
+  return snapshot ?? {};
+}
+
+export function resolveNonLoopbackIpAddresses(
+  networkInterfaces = readNetworkInterfaces,
+  { families = DEFAULT_ADDRESS_FAMILIES } = {},
+) {
+  const selectedFamilies = normalizeAddressFamilies(families);
+  const addresses = new Set();
+  const snapshot = resolveNetworkInterfaceSnapshot(networkInterfaces);
+  for (const entries of Object.values(snapshot)) {
     for (const entry of entries ?? []) {
+      const family = normalizeAddressFamily(entry?.family);
+      const address = String(entry?.address ?? '').trim();
       if (
-        (entry?.family !== 'IPv4' && entry?.family !== 4)
+        !selectedFamilies.has(family)
         || entry.internal
-        || !entry.address
-        || addresses.includes(entry.address)
+        || !address
       ) {
         continue;
       }
-      addresses.push(entry.address);
+      addresses.add(address);
     }
   }
-  return addresses.sort((left, right) => left.localeCompare(right));
+  return [...addresses].sort((left, right) => left.localeCompare(right));
+}
+
+export function resolveNonLoopbackIpv4Addresses(
+  networkInterfaces = readNetworkInterfaces,
+) {
+  return resolveNonLoopbackIpAddresses(networkInterfaces, { families: ['IPv4'] });
+}
+
+export function resolveNonLoopbackIpv6Addresses(
+  networkInterfaces = readNetworkInterfaces,
+) {
+  return resolveNonLoopbackIpAddresses(networkInterfaces, { families: ['IPv6'] });
 }
 
 export function resolveNetworkAccessUrls({
+  addressFamilies = ['IPv4'],
   host = '0.0.0.0',
   networkInterfaces,
   pathname = '',
@@ -62,8 +110,10 @@ export function resolveNetworkAccessUrls({
     return urls;
   }
 
-  for (const address of resolveNonLoopbackIpv4Addresses(networkInterfaces)) {
-    urls.push(`${urlPrefix}${address}${urlSuffix}`);
+  for (const address of resolveNonLoopbackIpAddresses(networkInterfaces, {
+    families: addressFamilies,
+  })) {
+    urls.push(`${urlPrefix}${formatNetworkUrlHost(address)}${urlSuffix}`);
   }
   return urls;
 }
@@ -107,6 +157,7 @@ export function formatResolvedNetworkAccessLines({
 }
 
 export function formatNetworkAccessLines({
+  addressFamilies = ['IPv4'],
   host = '0.0.0.0',
   includeLocal = true,
   localLabel = 'Local',
@@ -119,6 +170,7 @@ export function formatNetworkAccessLines({
   unavailableText,
 } = {}) {
   const summary = resolveNetworkAccessSummary({
+    addressFamilies,
     host,
     networkInterfaces,
     pathname,

@@ -29,11 +29,27 @@ export {
 export { isTcpPortReachable, DEFAULT_POSTGRES_REACHABILITY_TIMEOUT_MS } from './postgres.mjs';
 
 export {
+  parseTcpBinding,
+  resolveOwnedBindings,
+  stopOwnedBindings,
+  windowsListeningPids,
+} from './development-ownership.mjs';
+
+export {
+  MANAGED_RESOURCE_DRIVERS,
+  reconcileManagedResources,
+} from './managed-resources.mjs';
+
+export {
   formatNetworkAccessLines,
+  formatNetworkUrlHost,
   formatResolvedNetworkAccessLines,
   resolveNetworkAccessSummary,
   resolveNetworkAccessUrls,
+  resolveNetworkInterfaceSnapshot,
+  resolveNonLoopbackIpAddresses,
   resolveNonLoopbackIpv4Addresses,
+  resolveNonLoopbackIpv6Addresses,
 } from './network-access.mjs';
 
 export {

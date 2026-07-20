@@ -9,6 +9,9 @@ import { fileURLToPath } from 'node:url';
 import {
   createTopologyRuntime,
   loadTopologySpec,
+  reconcileManagedResources,
+  resolveOwnedBindings,
+  stopOwnedBindings,
   waitForHttpHealthy,
 } from '../tools/topology/lib/index.mjs';
 import {
@@ -103,7 +106,7 @@ function processIsAlive(pid) {
   }
 }
 
-function stopManagedDevelopmentSession(repoRoot) {
+function stopManagedDevelopmentSession(repoRoot, ownedBindings = []) {
   const session = readDevelopmentSession(repoRoot);
   if (!session) return false;
   const heartbeatAt = Date.parse(session.heartbeatAt ?? '');
@@ -113,13 +116,14 @@ function stopManagedDevelopmentSession(repoRoot) {
   }
   if (!Number.isFinite(heartbeatAt) || Date.now() - heartbeatAt > DEVELOPMENT_SESSION_STALE_MS) {
     removeDevelopmentSession(repoRoot);
-    throw new Error('development session registry is stale; no process was terminated');
+    return false;
   }
   if (!processIsAlive(session.supervisorPid)) {
     removeDevelopmentSession(repoRoot);
     return false;
   }
   if (process.platform === 'win32') {
+    stopOwnedBindings(ownedBindings);
     const result = spawnSync('taskkill', ['/PID', String(session.supervisorPid), '/T', '/F'], {
       stdio: 'pipe',
       encoding: 'utf8',
@@ -186,12 +190,22 @@ async function runGenericDevelopment(repoRoot, runtime, plan, env, dryRun) {
     const child = spawnLifecycleCommand(invocation.command, invocation.args, {
       cwd: path.resolve(repoRoot, entry.cwd ?? '.'),
       env: { ...env, ...(entry.env ?? {}) },
+      detached: process.platform !== 'win32',
     });
     children.push(child);
     refreshSession();
   };
   const terminate = () => children.forEach((child) => {
-    if (!child.killed) child.kill('SIGTERM');
+    if (child.killed) return;
+    if (process.platform === 'win32') {
+      child.kill('SIGTERM');
+      return;
+    }
+    try {
+      process.kill(-child.pid, 'SIGTERM');
+    } catch (error) {
+      if (error.code !== 'ESRCH') throw error;
+    }
   });
   const session = {
     schemaVersion: 1,
@@ -199,6 +213,7 @@ async function runGenericDevelopment(repoRoot, runtime, plan, env, dryRun) {
     supervisorPid: process.pid,
     profileId: plan.activeProfile,
     runtimeTarget: plan.runtimeTarget,
+    ownedBindings: plan.ownedBindings,
     startedAt: new Date().toISOString(),
   };
   const refreshSession = () => writeDevelopmentSession(repoRoot, {
@@ -217,6 +232,7 @@ async function runGenericDevelopment(repoRoot, runtime, plan, env, dryRun) {
   process.once('SIGINT', onSignal);
   process.once('SIGTERM', onSignal);
   try {
+    reconcileManagedResources(plan.managedResources, env, 'provision');
     early.forEach(launch);
     const stoppedDuringHealthCheck = await Promise.race([
       waitForPlanHealth(plan, runtime).then(() => false),
@@ -232,11 +248,43 @@ async function runGenericDevelopment(repoRoot, runtime, plan, env, dryRun) {
     if (first.code !== 0) throw new Error(`development process exited with code ${first.code}`);
   } finally {
     clearInterval(heartbeat);
-    terminate();
-    process.removeListener('SIGINT', onSignal);
-    process.removeListener('SIGTERM', onSignal);
-    removeDevelopmentSession(repoRoot);
+    try {
+      stopOwnedBindings(plan.ownedBindings);
+    } finally {
+      terminate();
+      try {
+        reconcileManagedResources(plan.managedResources, env, 'remove');
+      } finally {
+        process.removeListener('SIGINT', onSignal);
+        process.removeListener('SIGTERM', onSignal);
+        removeDevelopmentSession(repoRoot);
+      }
+    }
   }
+}
+
+function developmentCleanupTargets(runtime) {
+  const bindings = [];
+  const resources = [];
+  const bindingPorts = new Set();
+  const resourceIds = new Set();
+  for (const [profileId, profile] of Object.entries(runtime.spec.orchestration?.profiles ?? {})) {
+    if (runtime.parseProfileId(profileId).environment !== 'development') continue;
+    const environment = runtime.applyProfileEnv(profileId, [process.env, runtime.loadProfile(profileId)]);
+    for (const binding of resolveOwnedBindings(runtime.spec, profile, environment)) {
+      if (!bindingPorts.has(binding.port)) {
+        bindingPorts.add(binding.port);
+        bindings.push(binding);
+      }
+    }
+    for (const resource of profile.managedResources ?? []) {
+      if (!resourceIds.has(resource.id)) {
+        resourceIds.add(resource.id);
+        resources.push({ resource, environment });
+      }
+    }
+  }
+  return { bindings, resources };
 }
 
 async function runDevelopment(repoRoot, packageManifest, args) {
@@ -313,13 +361,20 @@ async function runStop(repoRoot, packageManifest, args) {
   const privateResult = await runPrivateLifecycleScript(repoRoot, packageManifest, privateScript, args);
   if (privateResult) {
     if (privateResult.code !== 0) throw new Error(`${privateScript} exited with code ${privateResult.code}`);
+  }
+  const runtime = loadRuntime(repoRoot);
+  const cleanup = developmentCleanupTargets(runtime);
+  const stoppedSession = stopManagedDevelopmentSession(repoRoot, cleanup.bindings);
+  const stoppedPids = stopOwnedBindings(cleanup.bindings);
+  const removedResources = [];
+  for (const { resource, environment } of cleanup.resources) {
+    removedResources.push(...reconcileManagedResources([resource], environment, 'remove'));
+  }
+  if (!stoppedSession && stoppedPids.size === 0 && removedResources.length === 0 && !privateResult) {
+    console.log(`[sdkwork-app] no active managed development resources: ${repoRoot}`);
     return;
   }
-  if (!stopManagedDevelopmentSession(repoRoot)) {
-    console.log(`[sdkwork-app] no active managed development session: ${repoRoot}`);
-    return;
-  }
-  console.log(`[sdkwork-app] stop requested for managed development session: ${repoRoot}`);
+  console.log(`[sdkwork-app] stopped managed development resources: ${repoRoot}`);
 }
 
 async function main(argv = process.argv.slice(2)) {
@@ -400,5 +455,6 @@ export {
   removeDevelopmentSession,
   sameModulePath,
   stopManagedDevelopmentSession,
+  developmentCleanupTargets,
   writeDevelopmentSession,
 };

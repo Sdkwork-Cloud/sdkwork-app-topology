@@ -101,6 +101,45 @@ test('filters browser clients by selected client architecture', () => {
   assert.throws(() => validateTopologySpec(spec, specPath), /canonical client architectures/u);
 });
 
+test('accepts declared edge runtimes only outside cloud development', () => {
+  const { spec, specPath } = fixture();
+  const edgeRuntime = {
+    id: 'edge.device-ingress',
+    role: 'edge-runtime',
+    script: '_sdkwork:runtime:device-edge',
+    decisionRef: 'docs/architecture/decisions/ADR-001-device-edge.md',
+  };
+  spec.orchestration.profiles['standalone.development'].processes.push(edgeRuntime);
+  assert.doesNotThrow(() => validateTopologySpec(spec, specPath));
+
+  spec.orchestration.profiles['standalone.development'].processes.pop();
+  spec.orchestration.profiles['cloud.development'].processes.push(edgeRuntime);
+  assert.throws(
+    () => validateTopologySpec(spec, specPath),
+    /cloud\.development forbids local process role edge-runtime/u,
+  );
+});
+
+test('rejects retired api-listener roles and ambiguous edge runtime declarations', () => {
+  const { spec, specPath } = fixture();
+  spec.orchestration.profiles['standalone.development'].processes.push({
+    id: 'legacy-api',
+    role: 'api-listener',
+  });
+  assert.throws(() => validateTopologySpec(spec, specPath), /requires a canonical role/u);
+
+  spec.orchestration.profiles['standalone.development'].processes.pop();
+  spec.orchestration.profiles['standalone.development'].processes.push({
+    id: 'edge.device-ingress',
+    role: 'edge-runtime',
+    script: '_sdkwork:gateway:device-edge',
+  });
+  assert.throws(
+    () => validateTopologySpec(spec, specPath),
+    /requires an _sdkwork:runtime:\* script/u,
+  );
+});
+
 test('rejects retired service layouts and allows independent remote surface origins', () => {
   const { root, spec, specPath } = fixture();
   spec.vocabulary.serviceLayout = { allowed: ['split-services'] };

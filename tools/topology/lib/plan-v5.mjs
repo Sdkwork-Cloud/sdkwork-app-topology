@@ -1,8 +1,10 @@
 import path from 'node:path';
 
+import { resolveOwnedBindings } from './development-ownership.mjs';
+
 const FORBIDDEN_CLOUD_DEVELOPMENT_ROLES = Object.freeze([
   'api-standalone-gateway',
-  'api-listener', 'database', 'redis', 'migration', 'seed', 'worker',
+  'edge-runtime', 'database', 'redis', 'migration', 'seed', 'worker',
 ]);
 
 function remoteUrl(value) {
@@ -64,6 +66,8 @@ export function createResolvedRuntimePlan(runtime, profileId, runtimeTarget, cli
     runtimeTarget,
     clientArchitecture: clientArchitecture ?? null,
     localProcesses: processes,
+    ownedBindings: resolveOwnedBindings(runtime.spec, profile, profileEnv),
+    managedResources: profile.managedResources ?? [],
     localGateway: gateways.length === 1
       ? { id: gateways[0].id, role: gateways[0].role, binary: gateways[0].binary ?? gateways[0].crate ?? null }
       : null,

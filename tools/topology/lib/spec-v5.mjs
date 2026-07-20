@@ -1,9 +1,10 @@
 import { normalizeText } from './env-file.mjs';
 import { parseProfileId } from './profile-id.mjs';
+import { MANAGED_RESOURCE_DRIVERS } from './managed-resources.mjs';
 
 export const PROCESS_ROLES = Object.freeze([
   'client', 'api-standalone-gateway',
-  'api-listener', 'database', 'redis', 'migration', 'seed', 'worker', 'tunnel',
+  'edge-runtime', 'database', 'redis', 'migration', 'seed', 'worker', 'tunnel',
 ]);
 
 export const RUNTIME_TARGETS = Object.freeze([
@@ -81,6 +82,14 @@ export function validateTopologySpecV5(spec, specPath = 'topology.spec.json') {
     for (const process of profile.processes ?? []) {
       if (!normalizeText(process.id)) throw new Error(`${specPath} ${profileId} process id is required`);
       if (!PROCESS_ROLES.includes(process.role)) throw new Error(`${specPath} ${profileId} process ${process.id} requires a canonical role`);
+      if (process.role === 'edge-runtime') {
+        if (!/^_sdkwork:runtime:[a-z0-9][a-z0-9:-]*$/u.test(normalizeText(process.script))) {
+          throw new Error(`${specPath} ${profileId} edge-runtime ${process.id} requires an _sdkwork:runtime:* script`);
+        }
+        if (!/^docs\/(?:adr|architecture\/decisions)\/[A-Za-z0-9._/-]+\.md$/u.test(normalizeText(process.decisionRef))) {
+          throw new Error(`${specPath} ${profileId} edge-runtime ${process.id} requires a canonical decisionRef`);
+        }
+      }
       if (process.runtimeTargets !== undefined) {
         if (!Array.isArray(process.runtimeTargets) || process.runtimeTargets.length === 0
           || process.runtimeTargets.some((target) => !RUNTIME_TARGETS.includes(target))) {
@@ -95,8 +104,22 @@ export function validateTopologySpecV5(spec, specPath = 'topology.spec.json') {
           throw new Error(`${specPath} ${profileId} process ${process.id} clientArchitectures must contain canonical client architectures on a client process`);
         }
       }
+      if (process.bindEnv !== undefined && !/^[A-Z][A-Z0-9_]+$/u.test(process.bindEnv)) {
+        throw new Error(`${specPath} ${profileId} process ${process.id} bindEnv must be an environment key`);
+      }
       if (profileId === 'cloud.development' && !['client', 'tunnel'].includes(process.role)) {
         throw new Error(`${specPath} cloud.development forbids local process role ${process.role}`);
+      }
+    }
+    for (const resource of profile.managedResources ?? []) {
+      if (!normalizeText(resource.id)) throw new Error(`${specPath} ${profileId} managed resource id is required`);
+      if (!MANAGED_RESOURCE_DRIVERS.includes(resource.driver)) {
+        throw new Error(`${specPath} ${profileId} managed resource ${resource.id} requires a supported driver`);
+      }
+      for (const key of ['enabledEnv', 'listenAddressEnv', 'listenPortEnv', 'distributionEnv']) {
+        if (resource[key] !== undefined && !/^[A-Z][A-Z0-9_]+$/u.test(resource[key])) {
+          throw new Error(`${specPath} ${profileId} managed resource ${resource.id} ${key} must be an environment key`);
+        }
       }
     }
   }

@@ -68,7 +68,10 @@
                     "required": ["id", "role"],
                     "properties": {
                       "id": { "type": "string", "minLength": 1 },
-                      "role": { "enum": ["client", "api-standalone-gateway", "database", "redis", "migration", "seed", "worker", "tunnel"] },
+                      "role": { "enum": ["client", "api-standalone-gateway", "edge-runtime", "database", "redis", "migration", "seed", "worker", "tunnel"] },
+                      "script": { "type": "string", "minLength": 1 },
+                      "decisionRef": { "type": "string", "pattern": "^docs/(adr|architecture/decisions)/[A-Za-z0-9._/-]+\\.md$" },
+                      "bindEnv": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]+$" },
                       "runtimeTargets": {
                         "type": "array",
                         "minItems": 1,
@@ -83,6 +86,35 @@
                           "enum": ["pc-web", "h5", "capacitor", "flutter", "tauri", "electron", "android-native", "ios-native", "harmony-native", "mini-program"]
                         }
                       }
+                    },
+                    "allOf": [
+                      {
+                        "if": { "properties": { "role": { "const": "edge-runtime" } }, "required": ["role"] },
+                        "then": {
+                          "required": ["script", "decisionRef"],
+                          "properties": {
+                            "script": { "pattern": "^_sdkwork:runtime:[a-z0-9][a-z0-9:-]*$" }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                "managedResources": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["id", "driver"],
+                    "properties": {
+                      "id": { "type": "string", "minLength": 1 },
+                      "driver": { "enum": ["windows-wsl-tcp-portproxy"] },
+                      "enabledEnv": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]+$" },
+                      "listenAddressEnv": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]+$" },
+                      "listenAddress": { "type": "string", "minLength": 1 },
+                      "listenPortEnv": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]+$" },
+                      "listenPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+                      "distributionEnv": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]+$" },
+                      "distribution": { "type": "string", "minLength": 1 }
                     }
                   }
                 }

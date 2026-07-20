@@ -3,10 +3,14 @@ import test from 'node:test';
 
 import {
   formatNetworkAccessLines,
+  formatNetworkUrlHost,
   formatResolvedNetworkAccessLines,
   resolveNetworkAccessSummary,
   resolveNetworkAccessUrls,
+  resolveNetworkInterfaceSnapshot,
+  resolveNonLoopbackIpAddresses,
   resolveNonLoopbackIpv4Addresses,
+  resolveNonLoopbackIpv6Addresses,
 } from '../tools/topology/lib/index.mjs';
 
 const networkInterfaces = {
@@ -23,8 +27,28 @@ const networkInterfaces = {
   Virtual: [
     { family: 'IPv4', address: '172.23.0.1', internal: false },
     { family: 'IPv4', address: '198.18.0.1', internal: false },
+    { family: 6, address: 'fd00::4', internal: false },
+    { family: 'IPv6', address: 'fe80::1', internal: false },
+    { family: 'IPv6', address: '::1', internal: true },
   ],
 };
+
+test('formats IPv4 and IPv6 addresses as URL hosts', () => {
+  assert.equal(formatNetworkUrlHost('192.168.31.110'), '192.168.31.110');
+  assert.equal(formatNetworkUrlHost('fd00::4'), '[fd00::4]');
+  assert.equal(formatNetworkUrlHost('[fd00::4]'), '[fd00::4]');
+});
+
+test('normalizes function and snapshot network interface inputs', () => {
+  let reads = 0;
+  assert.equal(resolveNetworkInterfaceSnapshot(() => {
+    reads += 1;
+    return networkInterfaces;
+  }), networkInterfaces);
+  assert.equal(reads, 1);
+  assert.equal(resolveNetworkInterfaceSnapshot(networkInterfaces), networkInterfaces);
+  assert.deepEqual(resolveNetworkInterfaceSnapshot(() => undefined), {});
+});
 
 test('resolves every unique non-loopback IPv4 address in stable order', () => {
   assert.deepEqual(resolveNonLoopbackIpv4Addresses(networkInterfaces), [
@@ -33,6 +57,24 @@ test('resolves every unique non-loopback IPv4 address in stable order', () => {
     '172.23.0.1',
     '192.168.31.110',
     '198.18.0.1',
+  ]);
+});
+
+test('resolves IPv6 and selected address families through the shared scanner', () => {
+  assert.deepEqual(resolveNonLoopbackIpv6Addresses(() => networkInterfaces), [
+    'fd00::4',
+    'fe80::1',
+  ]);
+  assert.deepEqual(resolveNonLoopbackIpAddresses(networkInterfaces, {
+    families: [4, 'IPv6'],
+  }), [
+    '169.254.23.73',
+    '169.254.30.58',
+    '172.23.0.1',
+    '192.168.31.110',
+    '198.18.0.1',
+    'fd00::4',
+    'fe80::1',
   ]);
 });
 
@@ -49,6 +91,24 @@ test('resolves local and network access URLs for a non-loopback listener', () =>
     'http://172.23.0.1:3001/',
     'http://192.168.31.110:3001/',
     'http://198.18.0.1:3001/',
+  ]);
+});
+
+test('formats IPv6 network URLs when the caller explicitly enables IPv6', () => {
+  assert.deepEqual(resolveNetworkAccessUrls({
+    addressFamilies: ['IPv4', 6],
+    host: '::',
+    port: 3001,
+    networkInterfaces: {
+      Ethernet: [
+        { family: 'IPv4', address: '192.168.31.110', internal: false },
+        { family: 'IPv6', address: 'fd00::4', internal: false },
+      ],
+    },
+  }), [
+    'http://127.0.0.1:3001',
+    'http://192.168.31.110:3001',
+    'http://[fd00::4]:3001',
   ]);
 });
 

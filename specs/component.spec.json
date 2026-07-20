@@ -21,7 +21,14 @@
     { "file": "SDKWORK_DEPLOY_SPEC.md", "path": "../sdkwork-specs/SDKWORK_DEPLOY_SPEC.md", "purpose": "Deployment execution delegation." }
   ],
   "contracts": {
-    "publicExports": [".", "./lifecycle", "./schema"],
+    "publicExports": [
+      ".",
+      "./lifecycle",
+      "./network-access",
+      "./schema",
+      "./schema/v1",
+      "./schema/v2"
+    ],
     "runtimeEntrypoints": ["sdkwork-topology", "sdkwork-app"],
     "routeManifest": null,
     "sdkClients": [],

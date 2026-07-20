@@ -25,8 +25,8 @@ export function validateLifecyclePackage(packageManifest) {
   for (const command of PUBLIC_LIFECYCLE_COMMANDS) {
     if (!facadeCommand(scripts[command], command)) issues.push(`scripts.${command} must use sdkwork-app ${command}`);
   }
-  if ((scripts['_sdkwork:dev:standalone'] || scripts['_sdkwork:dev:cloud']) && !scripts['_sdkwork:stop']) {
-    issues.push('private _sdkwork:dev hooks require a scoped _sdkwork:stop hook');
+  if (scripts['_sdkwork:stop']) {
+    issues.push('private _sdkwork:stop is forbidden; declare owned bindings and managed resources in topology');
   }
   return issues;
 }
@@ -79,6 +79,7 @@ export function spawnLifecycleCommand(command, args, options = {}) {
     env: options.env,
     stdio: options.stdio ?? 'inherit',
     shell: false,
+    detached: options.detached ?? false,
     windowsHide: true,
   });
 }

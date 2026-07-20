@@ -47,7 +47,7 @@ test('rejects public scripts that bypass the lifecycle facade', () => {
   assert.ok(issues.some((issue) => issue.includes('scripts.build')));
 });
 
-test('requires private development hooks to provide a scoped stop hook', () => {
+test('framework-owned stop does not require an application-private stop hook', () => {
   const facade = 'pnpm exec sdkwork-app';
   const manifest = { scripts: {
     dev: 'pnpm dev:standalone',
@@ -61,9 +61,9 @@ test('requires private development hooks to provide a scoped stop hook', () => {
     clean: `${facade} clean`,
     '_sdkwork:dev:standalone': 'node scripts/dev.mjs',
   } };
-  assert.ok(validateLifecyclePackage(manifest).some((issue) => issue.includes('_sdkwork:stop')));
-  manifest.scripts['_sdkwork:stop'] = 'node scripts/stop.mjs';
   assert.deepEqual(validateLifecyclePackage(manifest), []);
+  manifest.scripts['_sdkwork:stop'] = 'node scripts/stop.mjs';
+  assert.ok(validateLifecyclePackage(manifest).some((issue) => issue.includes('is forbidden')));
 });
 
 test('resolves script, command, and cargo topology processes without a shell', () => {
@@ -136,7 +136,7 @@ test('writes a scoped development session and refuses stale sessions', () => {
   assert.equal(readDevelopmentSession(repoRoot).repoRoot, repoRoot);
   const session = readDevelopmentSession(repoRoot);
   writeDevelopmentSession(repoRoot, { ...session, heartbeatAt: new Date(Date.now() - 60000).toISOString() });
-  assert.throws(() => stopManagedDevelopmentSession(repoRoot), /session registry is stale/u);
+  assert.equal(stopManagedDevelopmentSession(repoRoot), false);
   assert.equal(fs.existsSync(developmentSessionPath(repoRoot)), false);
   removeDevelopmentSession(repoRoot);
 });
