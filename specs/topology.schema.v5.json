@@ -4,6 +4,7 @@
   "title": "SDKWork Application Runtime Topology v5",
   "type": "object",
   "additionalProperties": true,
+  "not": { "required": ["cloudIngress"] },
   "required": ["schemaVersion", "kind", "appId", "vocabulary", "profileFiles", "surfaces", "orchestration"],
   "properties": {
     "schemaVersion": { "const": 5 },
@@ -67,7 +68,7 @@
                     "required": ["id", "role"],
                     "properties": {
                       "id": { "type": "string", "minLength": 1 },
-                      "role": { "enum": ["client", "api-standalone-gateway", "api-listener", "database", "redis", "migration", "seed", "worker", "tunnel"] },
+                      "role": { "enum": ["client", "api-standalone-gateway", "database", "redis", "migration", "seed", "worker", "tunnel"] },
                       "runtimeTargets": {
                         "type": "array",
                         "minItems": 1,
