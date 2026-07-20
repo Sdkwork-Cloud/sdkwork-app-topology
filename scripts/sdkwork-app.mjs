@@ -281,7 +281,9 @@ async function runRelease(repoRoot, packageManifest, command, args) {
   }
   const workflowPhases = new Set(['preflight', 'build', 'stage', 'package', 'sign', 'sbom', 'validate', 'publish']);
   if (!workflowPhases.has(phase)) throw new Error(`unsupported release phase ${phase}`);
-  if (!option(args, '--target-id')) throw new Error(`${command} requires --target-id`);
+  if (!option(args, '--target-id') && !option(args, '--deployment-profile')) {
+    throw new Error(`${command} requires --target-id or --deployment-profile`);
+  }
   await runWorkflow(repoRoot, 'lifecycle', ['--phase', phase, '--run', ...args]);
 }
 
