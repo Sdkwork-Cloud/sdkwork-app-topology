@@ -8,6 +8,7 @@ import test from 'node:test';
 import { platformLifecycleInvocation, resolveProcessInvocation } from '../tools/topology/lib/lifecycle.mjs';
 
 import {
+  developmentAccessLines,
   readDevelopmentSession,
   developmentSessionPath,
   frameworkCliPath,
@@ -39,6 +40,25 @@ test('accepts thin public lifecycle aliases and private implementation hooks', (
   } };
   assert.deepEqual(validateLifecyclePackage(manifest), []);
   assert.equal(privateLifecycleScript('dev', 'cloud'), '_sdkwork:dev:cloud');
+});
+
+test('generic development uses framework-resolved primary access endpoints', () => {
+  assert.deepEqual(developmentAccessLines({
+    accessEndpoints: [{
+      id: 'application-ui',
+      kind: 'user-interface',
+      primary: true,
+      path: '/',
+      url: 'http://127.0.0.1:4173/',
+      binding: { host: '127.0.0.1', port: 4173, value: '127.0.0.1:4173' },
+    }],
+  }, {
+    unavailableText: 'unavailable',
+  }), [
+    '[sdkwork-app] Access URLs',
+    '[sdkwork-app]   Local: http://127.0.0.1:4173/',
+    '[sdkwork-app]   Network: unavailable',
+  ]);
 });
 
 test('rejects public scripts that bypass the lifecycle facade', () => {

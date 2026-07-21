@@ -1,4 +1,5 @@
 import { normalizeText } from './env-file.mjs';
+import { ACCESS_ENDPOINT_KINDS } from './access-endpoints.mjs';
 import { parseProfileId } from './profile-id.mjs';
 import { MANAGED_RESOURCE_DRIVERS } from './managed-resources.mjs';
 
@@ -79,6 +80,9 @@ export function validateTopologySpecV5(spec, specPath = 'topology.spec.json') {
   for (const [profileId, profile] of Object.entries(orchestration)) {
     assertProfileId(profileId, specPath);
     if (!profileFiles[profileId]) throw new Error(`${specPath} orchestration profile ${profileId} is missing from profileFiles`);
+    const processesById = new Map(
+      (profile.processes ?? []).map((process) => [process.id, process]),
+    );
     for (const process of profile.processes ?? []) {
       if (!normalizeText(process.id)) throw new Error(`${specPath} ${profileId} process id is required`);
       if (!PROCESS_ROLES.includes(process.role)) throw new Error(`${specPath} ${profileId} process ${process.id} requires a canonical role`);
@@ -109,6 +113,51 @@ export function validateTopologySpecV5(spec, specPath = 'topology.spec.json') {
       }
       if (profileId === 'cloud.development' && !['client', 'tunnel'].includes(process.role)) {
         throw new Error(`${specPath} cloud.development forbids local process role ${process.role}`);
+      }
+    }
+    const accessEndpointIds = new Set();
+    for (const endpoint of profile.accessEndpoints ?? []) {
+      if (!/^[a-z0-9][a-z0-9.-]*$/u.test(normalizeText(endpoint.id))) {
+        throw new Error(`${specPath} ${profileId} access endpoint id must use lowercase dot/kebab tokens`);
+      }
+      if (accessEndpointIds.has(endpoint.id)) {
+        throw new Error(`${specPath} ${profileId} access endpoint id ${endpoint.id} is duplicated`);
+      }
+      accessEndpointIds.add(endpoint.id);
+      if (!ACCESS_ENDPOINT_KINDS.includes(endpoint.kind)) {
+        throw new Error(`${specPath} ${profileId} access endpoint ${endpoint.id} requires a canonical kind`);
+      }
+      if (!normalizeText(endpoint.path)?.startsWith('/') || /[?#]/u.test(endpoint.path)) {
+        throw new Error(`${specPath} ${profileId} access endpoint ${endpoint.id} path must be an absolute path without query or hash`);
+      }
+      const processId = normalizeText(endpoint.source?.processId);
+      const surfaceId = normalizeText(endpoint.source?.surfaceId);
+      if (Boolean(processId) === Boolean(surfaceId)) {
+        throw new Error(`${specPath} ${profileId} access endpoint ${endpoint.id} must reference exactly one processId or surfaceId`);
+      }
+      if (processId) {
+        const process = processesById.get(processId);
+        if (!process) {
+          throw new Error(`${specPath} ${profileId} access endpoint ${endpoint.id} references unknown process ${processId}`);
+        }
+        if (!normalizeText(process.bindEnv)) {
+          throw new Error(`${specPath} ${profileId} access endpoint ${endpoint.id} process ${processId} must declare bindEnv`);
+        }
+      }
+      if (surfaceId && !surfaces[surfaceId]) {
+        throw new Error(`${specPath} ${profileId} access endpoint ${endpoint.id} references unknown surface ${surfaceId}`);
+      }
+      if (endpoint.runtimeTargets !== undefined
+        && (!Array.isArray(endpoint.runtimeTargets)
+          || endpoint.runtimeTargets.length === 0
+          || endpoint.runtimeTargets.some((target) => !RUNTIME_TARGETS.includes(target)))) {
+        throw new Error(`${specPath} ${profileId} access endpoint ${endpoint.id} runtimeTargets must contain canonical runtime targets`);
+      }
+      if (endpoint.clientArchitectures !== undefined
+        && (!Array.isArray(endpoint.clientArchitectures)
+          || endpoint.clientArchitectures.length === 0
+          || endpoint.clientArchitectures.some((architecture) => !CLIENT_ARCHITECTURES.includes(architecture)))) {
+        throw new Error(`${specPath} ${profileId} access endpoint ${endpoint.id} clientArchitectures must contain canonical client architectures`);
       }
     }
     for (const resource of profile.managedResources ?? []) {

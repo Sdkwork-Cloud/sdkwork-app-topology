@@ -2,8 +2,8 @@
 
 Status: active
 Owner: SDKWork maintainers
-Updated: 2026-06-24
-Specs: ARCHITECTURE_DECISION_SPEC.md, DOCUMENTATION_SPEC.md
+Updated: 2026-07-21
+Specs: APP_RUNTIME_TOPOLOGY_SPEC.md, ARCHITECTURE_DECISION_SPEC.md, DOCUMENTATION_SPEC.md
 
 ## Document Map
 
@@ -28,5 +28,7 @@ Architecture detail lives in the linked TECH shards below.
 ## 7. Deployment And Runtime Topology
 
 ## 8. Architecture Decision Index
+
+- [ADR-20260721 Topology-Declared Access Endpoints](../decisions/ADR-20260721-topology-declared-access-endpoints.md)
 
 ## 9. Verification

@@ -39,7 +39,35 @@ function fixture() {
     orchestration: {
       profiles: {
         'standalone.development': {
-          processes: [{ id: 'standalone-gateway', role: 'api-standalone-gateway', crate: 'sdkwork-demo-standalone-gateway' }],
+          processes: [
+            { id: 'standalone-gateway', role: 'api-standalone-gateway', crate: 'sdkwork-demo-standalone-gateway' },
+            {
+              id: 'web-client',
+              role: 'client',
+              script: '_sdkwork:client',
+              bindEnv: 'WEB_BIND',
+              runtimeTargets: ['browser'],
+              clientArchitectures: ['pc-web'],
+            },
+          ],
+          accessEndpoints: [
+            {
+              id: 'application-ui',
+              kind: 'user-interface',
+              source: { processId: 'web-client' },
+              path: '/',
+              primary: true,
+              runtimeTargets: ['browser'],
+              clientArchitectures: ['pc-web'],
+            },
+            {
+              id: 'application-api-reference',
+              kind: 'api-reference',
+              source: { surfaceId: 'application.public-ingress' },
+              path: '/openapi.json',
+              runtimeTargets: ['browser'],
+            },
+          ],
           healthSurfaces: ['application.public-ingress'],
         },
         'cloud.development': {
@@ -58,6 +86,7 @@ function fixture() {
   fs.writeFileSync(path.join(root, 'etc', 'topology', 'standalone.development.env'), [
     'SDKWORK_DEMO_PROFILE_ID=standalone.development',
     'APP_URL=http://127.0.0.1:8080',
+    'WEB_BIND=0.0.0.0:4173',
     '',
   ].join('\n'));
   fs.writeFileSync(path.join(root, 'etc', 'topology', 'cloud.development.env'), [
@@ -88,6 +117,69 @@ test('filters local processes by the selected runtime target', () => {
   assert.deepEqual(plan.localProcesses.map((process) => process.id), ['desktop-client']);
   spec.orchestration.profiles['cloud.development'].processes[0].runtimeTargets = ['unknown'];
   assert.throws(() => validateTopologySpec(spec, specPath), /canonical runtime targets/u);
+});
+
+test('resolves declared process and surface access endpoints into the runtime plan', () => {
+  const { root, spec, specPath } = fixture();
+  const runtime = createTopologyRuntime(spec, root, specPath);
+  const plan = runtime.resolvePlan('standalone.development', 'browser');
+
+  assert.deepEqual(plan.accessEndpoints.map((endpoint) => ({
+    id: endpoint.id,
+    kind: endpoint.kind,
+    primary: endpoint.primary,
+    url: endpoint.url,
+    binding: endpoint.binding?.value ?? null,
+  })), [
+    {
+      id: 'application-ui',
+      kind: 'user-interface',
+      primary: true,
+      url: 'http://127.0.0.1:4173/',
+      binding: '0.0.0.0:4173',
+    },
+    {
+      id: 'application-api-reference',
+      kind: 'api-reference',
+      primary: false,
+      url: 'http://127.0.0.1:8080/openapi.json',
+      binding: null,
+    },
+  ]);
+  assert.equal(plan.primaryAccessEndpoint.id, 'application-ui');
+});
+
+test('resolves access endpoints from the effective profile environment', () => {
+  const { root, spec, specPath } = fixture();
+  const runtime = createTopologyRuntime(spec, root, specPath);
+  const profileEnv = runtime.loadProfile('standalone.development');
+  const plan = runtime.resolvePlan('standalone.development', 'browser', 'pc-web', {
+    profileEnv: { ...profileEnv, WEB_BIND: '127.0.0.1:4199' },
+  });
+
+  assert.equal(plan.primaryAccessEndpoint.url, 'http://127.0.0.1:4199/');
+  assert.equal(plan.primaryAccessEndpoint.binding.value, '127.0.0.1:4199');
+});
+
+test('validates access endpoint references and selected primary uniqueness', () => {
+  const { root, spec, specPath } = fixture();
+  spec.orchestration.profiles['standalone.development'].accessEndpoints[0].source = {
+    processId: 'missing-client',
+  };
+  assert.throws(
+    () => validateTopologySpec(spec, specPath),
+    /references unknown process missing-client/u,
+  );
+
+  spec.orchestration.profiles['standalone.development'].accessEndpoints[0].source = {
+    processId: 'web-client',
+  };
+  spec.orchestration.profiles['standalone.development'].accessEndpoints[1].primary = true;
+  const runtime = createTopologyRuntime(spec, root, specPath);
+  assert.throws(
+    () => runtime.resolvePlan('standalone.development', 'browser'),
+    /multiple primary access endpoints/u,
+  );
 });
 
 test('filters browser clients by selected client architecture', () => {

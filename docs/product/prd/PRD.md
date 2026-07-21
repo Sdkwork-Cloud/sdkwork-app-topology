@@ -26,3 +26,5 @@ Provide reusable platform capabilities consumed by SDKWork applications and docu
 - End-user workflows, product packaging, or tenant-facing application behavior.
 
 ## 8. Linked Requirements
+
+- [REQ-2026-0001 Topology-Declared Access Endpoints](../requirements/REQ-2026-0001-topology-access-endpoints.md)

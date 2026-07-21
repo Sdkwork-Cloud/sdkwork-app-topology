@@ -32,6 +32,12 @@ export function createTopologyRuntimeV5(spec, repoRoot, specPath) {
       'ios-native': 'ios-native',
       'harmony-native': 'harmony-native',
       'mini-program': 'mini-program',
-    }[runtimeTarget] ?? null)) => createResolvedRuntimePlan(v5, profileId, runtimeTarget, clientArchitecture),
+    }[runtimeTarget] ?? null), options = {}) => createResolvedRuntimePlan(
+      v5,
+      profileId,
+      runtimeTarget,
+      clientArchitecture,
+      options,
+    ),
   };
 }

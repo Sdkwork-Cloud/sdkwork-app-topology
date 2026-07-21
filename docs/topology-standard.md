@@ -38,6 +38,7 @@ The v1 runtime-plan output records:
 - local processes and canonical roles;
 - local gateway and data stores;
 - remote surfaces and Base URL provenance;
+- declared access endpoints and the selected primary endpoint;
 - health checks and config sources;
 - forbidden cloud-development roles and any violating processes.
 

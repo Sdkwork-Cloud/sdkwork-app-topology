@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   createTopologyRuntime,
+  formatPrimaryAccessLines,
   loadTopologySpec,
   reconcileManagedResources,
   resolveOwnedBindings,
@@ -174,6 +175,13 @@ async function waitForPlanHealth(plan, runtime) {
   }
 }
 
+function developmentAccessLines(plan, options = {}) {
+  return formatPrimaryAccessLines(plan, {
+    prefix: '[sdkwork-app] ',
+    ...options,
+  });
+}
+
 async function runGenericDevelopment(repoRoot, runtime, plan, env, dryRun) {
   const early = plan.localProcesses.filter((entry) => entry.role !== 'client');
   const clients = plan.localProcesses.filter((entry) => entry.role === 'client');
@@ -240,6 +248,9 @@ async function runGenericDevelopment(repoRoot, runtime, plan, env, dryRun) {
     ]);
     if (stoppedDuringHealthCheck) return;
     clients.forEach(launch);
+    for (const line of developmentAccessLines(plan)) {
+      console.log(line);
+    }
     if (children.length === 0) throw new Error('development plan has no local processes; declare a client process or private _sdkwork:dev hook');
     const first = await Promise.race([
       ...children.map(waitForChild),
@@ -447,6 +458,7 @@ if (invokedPath && sameModulePath(invokedPath, fileURLToPath(import.meta.url))) 
 }
 
 export {
+  developmentAccessLines,
   developmentSessionPath,
   frameworkCliPath,
   main,

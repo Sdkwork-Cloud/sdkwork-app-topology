@@ -1,5 +1,6 @@
 import path from 'node:path';
 
+import { resolveDeclaredAccessEndpoints } from './access-endpoints.mjs';
 import { resolveOwnedBindings } from './development-ownership.mjs';
 
 const FORBIDDEN_CLOUD_DEVELOPMENT_ROLES = Object.freeze([
@@ -16,10 +17,16 @@ function remoteUrl(value) {
   }
 }
 
-export function createResolvedRuntimePlan(runtime, profileId, runtimeTarget, clientArchitecture) {
+export function createResolvedRuntimePlan(
+  runtime,
+  profileId,
+  runtimeTarget,
+  clientArchitecture,
+  { profileEnv: profileEnvOverride } = {},
+) {
   const profile = runtime.spec.orchestration?.profiles?.[runtime.assertProfileId(profileId)];
   if (!profile) throw new Error(`missing orchestration profile ${profileId}`);
-  const profileEnv = runtime.loadProfile(profileId);
+  const profileEnv = profileEnvOverride ?? runtime.loadProfile(profileId);
   const { deploymentProfile, environment } = runtime.parseProfileId(profileId);
   const processes = (profile.processes ?? []).filter((process) => {
     const runtimeMatches = !Array.isArray(process.runtimeTargets)
@@ -56,6 +63,15 @@ export function createResolvedRuntimePlan(runtime, profileId, runtimeTarget, cli
       if (!remoteUrl(value) && !tunnel) throw new Error(`${profileId} ${surfaceId} must use a deployed URL or explicit tunnel`);
     }
   }
+  const accessEndpoints = resolveDeclaredAccessEndpoints({
+    runtime,
+    profile,
+    profileEnv,
+    selectedProcesses: processes,
+    resolvedBaseUrls,
+    runtimeTarget,
+    clientArchitecture,
+  });
   return {
     schemaVersion: 1,
     kind: 'sdkwork.runtime-plan',
@@ -74,6 +90,9 @@ export function createResolvedRuntimePlan(runtime, profileId, runtimeTarget, cli
     remoteSurfaces,
     resolvedBaseUrls,
     endpointProvenance,
+    accessEndpoints,
+    primaryAccessEndpoint:
+      accessEndpoints.find((endpoint) => endpoint.primary) ?? null,
     localDataStores: processes.filter((process) => ['database', 'redis'].includes(process.role)).map((process) => ({ id: process.id, role: process.role })),
     healthChecks: (profile.healthSurfaces ?? []).map((surfaceId) => ({ surfaceId, url: resolvedBaseUrls[surfaceId] ?? null, required: true })),
     configSources: [path.relative(runtime.repoRoot, runtime.specPath).replaceAll('\\', '/'), profileSource],

@@ -41,6 +41,14 @@ export {
 } from './managed-resources.mjs';
 
 export {
+  ACCESS_ENDPOINT_KINDS,
+  formatAccessEndpointCatalogLines,
+  formatPrimaryAccessLines,
+  resolveAccessEndpointReports,
+  resolveDeclaredAccessEndpoints,
+} from './access-endpoints.mjs';
+
+export {
   formatNetworkAccessLines,
   formatNetworkUrlHost,
   formatResolvedNetworkAccessLines,

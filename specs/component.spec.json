@@ -23,6 +23,7 @@
   "contracts": {
     "publicExports": [
       ".",
+      "./access-endpoints",
       "./lifecycle",
       "./network-access",
       "./schema",

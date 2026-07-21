@@ -1,42 +1,43 @@
-{
-  "name": "@sdkwork/app-topology",
-  "version": "0.2.0",
-  "private": true,
-  "description": "SDKWork cross-application topology standard, profile loader, IAM database helpers, and dev orchestration library",
-  "license": "SEE LICENSE IN LICENSE",
-  "type": "module",
-  "exports": {
-    ".": {
-      "types": "./tools/topology/lib/index.mjs",
-      "import": "./tools/topology/lib/index.mjs",
-      "default": "./tools/topology/lib/index.mjs"
-    },
-    "./schema": "./specs/topology.schema.v5.json",
-    "./schema/v1": "./specs/topology.schema.json",
-    "./schema/v2": "./specs/topology.schema.v2.json",
-    "./lifecycle": "./tools/topology/lib/lifecycle.mjs",
-    "./network-access": "./tools/topology/lib/network-access.mjs"
-  },
-  "bin": {
-    "sdkwork-topology": "./scripts/sdkwork-topology.mjs",
-    "sdkwork-app": "./scripts/sdkwork-app.mjs"
-  },
-  "files": [
-    "tools/",
-    "scripts/",
-    "specs/",
-    "etc/templates/",
-    "docs/",
-    "examples/"
-  ],
-  "scripts": {
-    "stop": "node ../sdkwork-specs/tools/stop-sdkwork-workspace-processes.mjs --workspace .",
-    "build": "node --check scripts/sdkwork-topology.mjs && node --check scripts/sdkwork-app.mjs",
-    "test": "node --test tests/*.test.mjs",
-    "check": "pnpm build && pnpm test && pnpm validate:example",
-    "verify": "pnpm check",
-    "clean": "node -e \"console.log('sdkwork-app-topology has no generated build output')\"",
-    "validate:example": "node scripts/sdkwork-topology.mjs validate --root . --spec examples/sdkwork-drive/topology.spec.json",
-    "matrix:example": "node scripts/sdkwork-topology.mjs print-matrix --root . --spec examples/sdkwork-drive/topology.spec.json"
-  }
+﻿{
+    "name":  "@sdkwork/app-topology",
+    "version":  "0.2.0",
+    "private":  true,
+    "description":  "SDKWork cross-application topology standard, profile loader, IAM database helpers, and dev orchestration library",
+    "license": "AGPL-3.0-or-later",
+    "type":  "module",
+    "exports":  {
+                    ".":  {
+                              "types":  "./tools/topology/lib/index.mjs",
+                              "import":  "./tools/topology/lib/index.mjs",
+                              "default":  "./tools/topology/lib/index.mjs"
+                          },
+                    "./schema":  "./specs/topology.schema.v5.json",
+                    "./schema/v1":  "./specs/topology.schema.json",
+                    "./schema/v2":  "./specs/topology.schema.v2.json",
+                    "./lifecycle":  "./tools/topology/lib/lifecycle.mjs",
+                    "./access-endpoints":  "./tools/topology/lib/access-endpoints.mjs",
+                    "./network-access":  "./tools/topology/lib/network-access.mjs"
+                },
+    "bin":  {
+                "sdkwork-topology":  "./scripts/sdkwork-topology.mjs",
+                "sdkwork-app":  "./scripts/sdkwork-app.mjs"
+            },
+    "files":  [
+                  "tools/",
+                  "scripts/",
+                  "specs/",
+                  "etc/templates/",
+                  "docs/",
+                  "examples/"
+              ],
+    "scripts":  {
+                    "stop":  "node ../sdkwork-specs/tools/stop-sdkwork-workspace-processes.mjs --workspace .",
+                    "build":  "node --check scripts/sdkwork-topology.mjs \u0026\u0026 node --check scripts/sdkwork-app.mjs",
+                    "test":  "node --test tests/*.test.mjs",
+                    "check":  "pnpm build \u0026\u0026 pnpm test \u0026\u0026 pnpm validate:example",
+                    "verify":  "pnpm check",
+                    "clean":  "node -e \"console.log(\u0027sdkwork-app-topology has no generated build output\u0027)\"",
+                    "validate:example":  "node scripts/sdkwork-topology.mjs validate --root . --spec examples/sdkwork-drive/topology.spec.json",
+                    "matrix:example":  "node scripts/sdkwork-topology.mjs print-matrix --root . --spec examples/sdkwork-drive/topology.spec.json"
+                }
 }

@@ -110,30 +110,28 @@ workflow, and deploy-manifest validation.
 
 ## Network Access Output
 
-Development hosts import the narrow network projection component instead of
-copying operating-system interface discovery or URL formatting:
+Topology profiles declare typed `accessEndpoints` that reference an existing
+process or surface. The resolved runtime plan selects endpoints by runtime
+target and client architecture, resolves the effective bind/URL, and rejects
+multiple selected primary endpoints. Development hosts format that plan instead
+of deciding locally which listener is the application UI:
 
 ```js
 import {
-  formatNetworkAccessLines,
-  formatResolvedNetworkAccessLines,
-  resolveNetworkAccessSummary,
-} from '@sdkwork/app-topology/network-access';
+  formatPrimaryAccessLines,
+} from '@sdkwork/app-topology/access-endpoints';
 
-const lines = formatNetworkAccessLines({
-  host: '0.0.0.0',
-  port: 3001,
-  pathname: '/',
-  prefix: '[application]   ',
-  unavailableText: 'unavailable',
+const plan = runtime.resolvePlan('standalone.development', 'browser');
+const lines = formatPrimaryAccessLines(plan, {
+  prefix: '[application] ',
 });
 ```
 
-The component owns non-loopback IPv4 discovery, de-duplication, deterministic
-ordering, listener-scope handling, URL projection, and one-link-per-line
-formatting. Applications own only their log prefix, headings, labels, and
-product-specific readiness text. A loopback-only listener never advertises LAN
-URLs that other devices cannot reach.
+The access component owns endpoint selection, non-loopback address discovery,
+de-duplication, deterministic ordering, listener-scope handling, URL projection,
+and one-link-per-line formatting. Applications own only their log prefix and
+product-specific readiness/route diagnostics. A loopback-only listener never
+advertises LAN URLs that other devices cannot reach.
 
 Applications with stricter address or security policy can retain their own
 URL selection and pass the resulting `{ localUrl, networkUrls }` summary to
