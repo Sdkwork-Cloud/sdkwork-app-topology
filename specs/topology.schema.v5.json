@@ -68,6 +68,7 @@
                     "required": ["id", "role"],
                     "properties": {
                       "id": { "type": "string", "minLength": 1 },
+                      "applicationRoot": { "type": "string", "minLength": 1 },
                       "role": { "enum": ["client", "api-standalone-gateway", "edge-runtime", "database", "redis", "migration", "seed", "worker", "tunnel"] },
                       "script": { "type": "string", "minLength": 1 },
                       "decisionRef": { "type": "string", "pattern": "^docs/(adr|architecture/decisions)/[A-Za-z0-9._/-]+\\.md$" },

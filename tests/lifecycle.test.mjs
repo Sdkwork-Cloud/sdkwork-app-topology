@@ -8,6 +8,7 @@ import test from 'node:test';
 import { platformLifecycleInvocation, resolveProcessInvocation } from '../tools/topology/lib/lifecycle.mjs';
 
 import {
+  buildClientEnvironment,
   developmentAccessLines,
   readDevelopmentSession,
   developmentSessionPath,
@@ -15,6 +16,7 @@ import {
   main,
   passthroughArgs,
   removeDevelopmentSession,
+  resolveClientApplicationRoot,
   sameModulePath,
   stopManagedDevelopmentSession,
   writeDevelopmentSession,
@@ -127,6 +129,81 @@ test('preserves dry-run while removing facade-only root selection', () => {
     ),
     ['--deployment-profile', 'cloud', '--dry-run'],
   );
+});
+
+test('resolves independent client application roots explicitly', () => {
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'sdkwork-client-root-'));
+  const pcRoot = path.join(repoRoot, 'apps', 'demo-pc');
+  const h5Root = path.join(repoRoot, 'apps', 'demo-h5');
+  fs.mkdirSync(pcRoot, { recursive: true });
+  fs.mkdirSync(h5Root, { recursive: true });
+  fs.writeFileSync(path.join(repoRoot, 'sdkwork.app.config.json'), '{}');
+  fs.writeFileSync(path.join(pcRoot, 'sdkwork.app.config.json'), '{}');
+  fs.writeFileSync(path.join(h5Root, 'sdkwork.app.config.json'), '{}');
+
+  assert.equal(
+    resolveClientApplicationRoot(repoRoot, { applicationRoot: 'apps/demo-pc', role: 'client' }),
+    pcRoot,
+  );
+  assert.equal(
+    resolveClientApplicationRoot(repoRoot, { cwd: 'apps/demo-h5', role: 'client' }),
+    h5Root,
+  );
+  assert.throws(
+    () => resolveClientApplicationRoot(repoRoot, { applicationRoot: '..', role: 'client' }),
+    /must stay within repository root/u,
+  );
+});
+
+test('builds private per-application client environments without public token aliases', async () => {
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'sdkwork-client-env-'));
+  const packageRoot = path.join(repoRoot, 'node_modules', '@sdkwork', 'iam-credential-entry');
+  fs.mkdirSync(packageRoot, { recursive: true });
+  fs.writeFileSync(path.join(packageRoot, 'package.json'), JSON.stringify({
+    name: '@sdkwork/iam-credential-entry',
+    type: 'module',
+    exports: { './node-bootstrap': './node-bootstrap.mjs' },
+  }));
+  fs.writeFileSync(path.join(packageRoot, 'node-bootstrap.mjs'), [
+    "import fs from 'node:fs';",
+    "import path from 'node:path';",
+    'export function mergeRepoBootstrapAccessTokenEnv({ repoRoot, env, environment, runtimeTarget }) {',
+    "  const manifest = JSON.parse(fs.readFileSync(path.join(repoRoot, 'sdkwork.app.config.json'), 'utf8'));",
+    "  const configured = String(env.SDKWORK_ACCESS_TOKEN ?? '').trim();",
+    '  return {',
+    '    ...env,',
+    "    SDKWORK_ACCESS_TOKEN: configured || ['fixture', manifest.app.key, environment, runtimeTarget].join(':'),",
+    '  };',
+    '}',
+    '',
+  ].join('\n'));
+
+  for (const appId of ['demo-pc', 'demo-h5']) {
+    const appRoot = path.join(repoRoot, 'apps', appId);
+    fs.mkdirSync(appRoot, { recursive: true });
+    fs.writeFileSync(path.join(appRoot, 'package.json'), JSON.stringify({ name: `@sdkwork/${appId}` }));
+    fs.writeFileSync(path.join(appRoot, 'sdkwork.app.config.json'), JSON.stringify({ app: { key: appId } }));
+  }
+
+  const plan = { environment: 'development', runtimeTarget: 'browser' };
+  const pcEnv = await buildClientEnvironment(
+    repoRoot,
+    { applicationRoot: 'apps/demo-pc', role: 'client' },
+    { SHARED_VALUE: 'shared' },
+    plan,
+  );
+  const h5Env = await buildClientEnvironment(
+    repoRoot,
+    { applicationRoot: 'apps/demo-h5', role: 'client' },
+    { SDKWORK_ACCESS_TOKEN: 'configured-token' },
+    plan,
+  );
+
+  assert.equal(pcEnv.SDKWORK_ACCESS_TOKEN, 'fixture:demo-pc:development:browser');
+  assert.equal(pcEnv.SHARED_VALUE, 'shared');
+  assert.equal(h5Env.SDKWORK_ACCESS_TOKEN, 'configured-token');
+  assert.equal(pcEnv.VITE_ACCESS_TOKEN, undefined);
+  assert.equal(h5Env.VITE_ACCESS_TOKEN, undefined);
 });
 
 test('recognizes the CLI through a workspace directory link', () => {

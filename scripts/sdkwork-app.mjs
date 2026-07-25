@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import process from 'node:process';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
   createTopologyRuntime,
@@ -182,6 +183,90 @@ function developmentAccessLines(plan, options = {}) {
   });
 }
 
+function findNearestApplicationRoot(startPath, repoRoot) {
+  const boundary = path.resolve(repoRoot);
+  let current = path.resolve(startPath);
+  if (current !== boundary && !current.startsWith(`${boundary}${path.sep}`)) {
+    throw new Error(`client path must stay within repository root: ${startPath}`);
+  }
+  while (current === boundary || current.startsWith(`${boundary}${path.sep}`)) {
+    if (fs.existsSync(path.join(current, 'sdkwork.app.config.json'))) {
+      return current;
+    }
+    if (current === boundary) {
+      break;
+    }
+    current = path.dirname(current);
+  }
+  return boundary;
+}
+
+function listWorkspacePackageManifests(repoRoot) {
+  const manifests = [];
+  const visit = (directory) => {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      if (['.git', 'node_modules', 'dist', 'target'].includes(entry.name)) {
+        continue;
+      }
+      const entryPath = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        visit(entryPath);
+      } else if (entry.name === 'package.json') {
+        manifests.push(entryPath);
+      }
+    }
+  };
+  visit(repoRoot);
+  return manifests;
+}
+
+function resolveClientApplicationRoot(repoRoot, entry) {
+  const boundary = path.resolve(repoRoot);
+  let applicationRoot;
+  if (entry.applicationRoot) {
+    applicationRoot = path.resolve(repoRoot, entry.applicationRoot);
+  } else if (entry.cwd) {
+    applicationRoot = findNearestApplicationRoot(path.resolve(repoRoot, entry.cwd), repoRoot);
+  } else if (entry.package) {
+    for (const manifestPath of listWorkspacePackageManifests(repoRoot)) {
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+      if (manifest.name === entry.package) {
+        applicationRoot = findNearestApplicationRoot(path.dirname(manifestPath), repoRoot);
+        break;
+      }
+    }
+    if (!applicationRoot) {
+      throw new Error(`cannot resolve application root for client package ${entry.package}`);
+    }
+  } else {
+    applicationRoot = boundary;
+  }
+  if (applicationRoot !== boundary && !applicationRoot.startsWith(`${boundary}${path.sep}`)) {
+    throw new Error(`client applicationRoot must stay within repository root: ${entry.applicationRoot}`);
+  }
+  if (!fs.existsSync(path.join(applicationRoot, 'sdkwork.app.config.json'))) {
+    throw new Error(`client applicationRoot is missing sdkwork.app.config.json: ${applicationRoot}`);
+  }
+  return applicationRoot;
+}
+
+async function loadCredentialEntryBootstrap(applicationRoot) {
+  const require = createRequire(path.join(applicationRoot, 'package.json'));
+  const modulePath = require.resolve('@sdkwork/iam-credential-entry/node-bootstrap');
+  return import(pathToFileURL(modulePath).href);
+}
+
+async function buildClientEnvironment(repoRoot, entry, env, plan) {
+  const applicationRoot = resolveClientApplicationRoot(repoRoot, entry);
+  const { mergeRepoBootstrapAccessTokenEnv } = await loadCredentialEntryBootstrap(applicationRoot);
+  return mergeRepoBootstrapAccessTokenEnv({
+    repoRoot: applicationRoot,
+    env: { ...env, ...(entry.env ?? {}) },
+    environment: plan.environment,
+    runtimeTarget: plan.runtimeTarget,
+  });
+}
+
 async function runGenericDevelopment(repoRoot, runtime, plan, env, dryRun) {
   const early = plan.localProcesses.filter((entry) => entry.role !== 'client');
   const clients = plan.localProcesses.filter((entry) => entry.role === 'client');
@@ -192,12 +277,19 @@ async function runGenericDevelopment(repoRoot, runtime, plan, env, dryRun) {
     console.log(JSON.stringify({ plan, invocations: resolved }, null, 2));
     return;
   }
+  const clientEnvironments = new Map();
+  for (const entry of clients) {
+    clientEnvironments.set(entry, await buildClientEnvironment(repoRoot, entry, env, plan));
+  }
   const children = [];
   const launch = (entry) => {
     const invocation = resolveProcessInvocation(entry);
+    const childEnv = entry.role === 'client'
+      ? clientEnvironments.get(entry)
+      : { ...env, ...(entry.env ?? {}) };
     const child = spawnLifecycleCommand(invocation.command, invocation.args, {
       cwd: path.resolve(repoRoot, entry.cwd ?? '.'),
-      env: { ...env, ...(entry.env ?? {}) },
+      env: childEnv,
       detached: process.platform !== 'win32',
     });
     children.push(child);
@@ -458,6 +550,7 @@ if (invokedPath && sameModulePath(invokedPath, fileURLToPath(import.meta.url))) 
 }
 
 export {
+  buildClientEnvironment,
   developmentAccessLines,
   developmentSessionPath,
   frameworkCliPath,
@@ -465,6 +558,7 @@ export {
   passthroughArgs,
   readDevelopmentSession,
   removeDevelopmentSession,
+  resolveClientApplicationRoot,
   sameModulePath,
   stopManagedDevelopmentSession,
   developmentCleanupTargets,

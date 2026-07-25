@@ -86,6 +86,10 @@ export function validateTopologySpecV5(spec, specPath = 'topology.spec.json') {
     for (const process of profile.processes ?? []) {
       if (!normalizeText(process.id)) throw new Error(`${specPath} ${profileId} process id is required`);
       if (!PROCESS_ROLES.includes(process.role)) throw new Error(`${specPath} ${profileId} process ${process.id} requires a canonical role`);
+      if (process.applicationRoot !== undefined
+        && (process.role !== 'client' || !normalizeText(process.applicationRoot))) {
+        throw new Error(`${specPath} ${profileId} process ${process.id} applicationRoot is valid only on a client process`);
+      }
       if (process.role === 'edge-runtime') {
         if (!/^_sdkwork:runtime:[a-z0-9][a-z0-9:-]*$/u.test(normalizeText(process.script))) {
           throw new Error(`${specPath} ${profileId} edge-runtime ${process.id} requires an _sdkwork:runtime:* script`);
