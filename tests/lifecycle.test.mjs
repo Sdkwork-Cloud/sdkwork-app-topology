@@ -18,6 +18,7 @@ import {
   passthroughArgs,
   removeDevelopmentSession,
   resolveClientApplicationRoot,
+  resolveSurfaceHealthOptions,
   sameModulePath,
   stopManagedDevelopmentSession,
   writeDevelopmentSession,
@@ -26,6 +27,26 @@ import {
   privateLifecycleScript,
   validateLifecyclePackage,
 } from '../tools/topology/lib/lifecycle.mjs';
+
+test('uses cold-build-safe shared health defaults with surface overrides', () => {
+  assert.deepEqual(resolveSurfaceHealthOptions(), {
+    path: '/healthz',
+    attempts: 90,
+    intervalMs: 1000,
+    timeoutMs: 2000,
+  });
+  assert.deepEqual(resolveSurfaceHealthOptions({
+    healthPath: '/readyz',
+    healthAttempts: 12,
+    healthIntervalMs: 250,
+    healthTimeoutMs: 500,
+  }), {
+    path: '/readyz',
+    attempts: 12,
+    intervalMs: 250,
+    timeoutMs: 500,
+  });
+});
 
 test('accepts thin public lifecycle aliases and private implementation hooks', () => {
   const facade = 'pnpm exec sdkwork-app';

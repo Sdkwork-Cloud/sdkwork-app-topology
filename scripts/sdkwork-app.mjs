@@ -162,16 +162,20 @@ function loadRuntime(repoRoot) {
   return runtime;
 }
 
+function resolveSurfaceHealthOptions(surface = {}) {
+  return {
+    path: surface.healthPath ?? '/healthz',
+    attempts: surface.healthAttempts ?? 90,
+    intervalMs: surface.healthIntervalMs ?? 1000,
+    timeoutMs: surface.healthTimeoutMs ?? 2000,
+  };
+}
+
 async function waitForPlanHealth(plan, runtime) {
   for (const check of plan.healthChecks) {
     if (!check.url) throw new Error(`missing health URL for ${check.surfaceId}`);
     const surface = runtime.spec.surfaces[check.surfaceId] ?? {};
-    const healthy = await waitForHttpHealthy(check.url, {
-      path: surface.healthPath ?? '/healthz',
-      attempts: surface.healthAttempts ?? 30,
-      intervalMs: surface.healthIntervalMs ?? 1000,
-      timeoutMs: surface.healthTimeoutMs ?? 2000,
-    });
+    const healthy = await waitForHttpHealthy(check.url, resolveSurfaceHealthOptions(surface));
     if (!healthy) throw new Error(`health check failed for ${check.surfaceId}: ${check.url}`);
   }
 }
@@ -606,6 +610,7 @@ export {
   readDevelopmentSession,
   removeDevelopmentSession,
   resolveClientApplicationRoot,
+  resolveSurfaceHealthOptions,
   sameModulePath,
   stopManagedDevelopmentSession,
   developmentCleanupTargets,
