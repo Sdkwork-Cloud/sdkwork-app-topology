@@ -9,6 +9,7 @@ import { platformLifecycleInvocation, resolveProcessInvocation } from '../tools/
 
 import {
   buildClientEnvironment,
+  createWorkflowDeployArgs,
   developmentAccessLines,
   readDevelopmentSession,
   developmentSessionPath,
@@ -451,6 +452,27 @@ test('release publication cannot bypass the workflow contract through a private 
     () => main(['release:publish', '--root', repoRoot, '--target-id', 'web-universal-cloud-browser-web-url']),
     /sdkwork\.workflow\.json is required/u,
   );
+});
+
+test('creates a workflow deploy invocation from immutable artifact evidence', () => {
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'sdkwork-app-workflow-deploy-'));
+  const evidencePath = path.join(repoRoot, '.sdkwork', 'evidence', 'demo.json');
+  fs.mkdirSync(path.dirname(evidencePath), { recursive: true });
+  fs.writeFileSync(evidencePath, JSON.stringify({
+    artifactId: 'demo-0.1.0',
+    digest: `sha256:${'a'.repeat(64)}`,
+  }));
+  const args = createWorkflowDeployArgs(repoRoot, {
+    SDKWORK_DEPLOYMENT_PROFILE: 'standalone',
+    SDKWORK_DEPLOY_ENVIRONMENT: 'production',
+    SDKWORK_ARTIFACT_EVIDENCE_PATH: path.relative(repoRoot, evidencePath),
+    SDKWORK_DEPLOY_ROLLBACK_TARGET: 'release-0.0.9',
+    SDKWORK_DEPLOY_APPROVAL_REF: 'change-1234',
+  });
+  assert.deepEqual(args.slice(0, 4), ['--profile', 'standalone.production', '--environment', 'production']);
+  assert.ok(args.includes('demo-0.1.0'));
+  assert.ok(args.includes('release-0.0.9'));
+  assert.ok(args.includes('change-1234'));
 });
 
 test('resolves framework CLIs from explicit non-workspace overrides', () => {

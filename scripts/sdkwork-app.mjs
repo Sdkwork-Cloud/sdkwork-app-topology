@@ -451,6 +451,49 @@ async function runDeploy(repoRoot, command, args) {
   } else throw new Error(`unsupported deploy phase ${phase}`);
 }
 
+function requiredWorkflowDeployValue(environment, key) {
+  const value = String(environment[key] ?? '').trim();
+  if (!value) throw new Error(`${key} is required for side-effecting deployment`);
+  return value;
+}
+
+function createWorkflowDeployArgs(repoRoot, environment = process.env) {
+  const deploymentProfile = requiredWorkflowDeployValue(environment, 'SDKWORK_DEPLOYMENT_PROFILE');
+  const deployEnvironment = requiredWorkflowDeployValue(environment, 'SDKWORK_DEPLOY_ENVIRONMENT');
+  if (!/^(standalone|cloud)$/u.test(deploymentProfile)) {
+    throw new Error('SDKWORK_DEPLOYMENT_PROFILE must be standalone or cloud');
+  }
+  if (!/^(test|staging|production)$/u.test(deployEnvironment)) {
+    throw new Error('SDKWORK_DEPLOY_ENVIRONMENT must be test, staging, or production');
+  }
+  const evidencePath = path.resolve(
+    repoRoot,
+    requiredWorkflowDeployValue(environment, 'SDKWORK_ARTIFACT_EVIDENCE_PATH'),
+  );
+  const boundary = path.resolve(repoRoot);
+  if (evidencePath !== boundary && !evidencePath.startsWith(`${boundary}${path.sep}`)) {
+    throw new Error('SDKWORK_ARTIFACT_EVIDENCE_PATH must stay within the application root');
+  }
+  if (!fs.existsSync(evidencePath)) throw new Error(`artifact evidence does not exist: ${evidencePath}`);
+  const evidence = JSON.parse(fs.readFileSync(evidencePath, 'utf8'));
+  const artifactId = String(evidence.artifactId ?? '').trim();
+  const digest = String(evidence.digest ?? '').trim();
+  if (!artifactId) throw new Error('artifact evidence artifactId is required');
+  if (!/^sha256:[a-f0-9]{64}$/u.test(digest)) {
+    throw new Error('artifact evidence digest must be immutable sha256');
+  }
+  return [
+    '--profile', `${deploymentProfile}.${deployEnvironment}`,
+    '--environment', deployEnvironment,
+    '--artifact-id', artifactId,
+    '--artifact-digest', digest,
+    '--artifact-evidence', evidencePath,
+    '--artifact-root', path.join(boundary, '.sdkwork', 'artifacts'),
+    '--rollback-target', requiredWorkflowDeployValue(environment, 'SDKWORK_DEPLOY_ROLLBACK_TARGET'),
+    '--approval-ref', requiredWorkflowDeployValue(environment, 'SDKWORK_DEPLOY_APPROVAL_REF'),
+  ];
+}
+
 async function runStandardCheck(repoRoot, environmentKey, fallback) {
   const cli = frameworkCliPath(environmentKey, fallback);
   if (!fs.existsSync(cli)) {
@@ -483,7 +526,7 @@ async function runStop(repoRoot, packageManifest, args) {
 async function main(argv = process.argv.slice(2)) {
   const [command, ...args] = argv;
   if (!command || ['help', '--help', '-h'].includes(command)) {
-    console.log('Usage: sdkwork-app <dev|stop|build|test|check|verify|clean|doctor|topology:plan|topology:validate|release:<phase>|deploy:validate|deploy:plan|deploy:apply|deploy:rollback> [options]');
+    console.log('Usage: sdkwork-app <dev|stop|build|test|check|verify|clean|doctor|topology:plan|topology:validate|release:<phase>|deploy:validate|deploy:plan|deploy:apply|deploy:rollback|deploy:workflow-apply> [options]');
     return;
   }
   const repoRoot = path.resolve(option(args, '--root', process.cwd()));
@@ -529,6 +572,9 @@ async function main(argv = process.argv.slice(2)) {
     return;
   }
   if (command.startsWith('release:')) return runRelease(repoRoot, packageManifest, command, forwarded);
+  if (command === 'deploy:workflow-apply') {
+    return runDeploy(repoRoot, 'deploy:apply', createWorkflowDeployArgs(repoRoot));
+  }
   if (command.startsWith('deploy:')) return runDeploy(repoRoot, command, forwarded);
   throw new Error(`unsupported lifecycle command ${command}`);
 }
@@ -551,6 +597,7 @@ if (invokedPath && sameModulePath(invokedPath, fileURLToPath(import.meta.url))) 
 
 export {
   buildClientEnvironment,
+  createWorkflowDeployArgs,
   developmentAccessLines,
   developmentSessionPath,
   frameworkCliPath,
