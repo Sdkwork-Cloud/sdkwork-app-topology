@@ -141,6 +141,67 @@
                     }
                   }
                 },
+                "browserDeliveries": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["id", "applicationRoot", "clientArchitectures", "originMode", "deliveryMode", "apiSurfaceId"],
+                    "properties": {
+                      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]*$" },
+                      "applicationRoot": { "type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9._/-]+$" },
+                      "clientArchitectures": {
+                        "type": "array",
+                        "minItems": 1,
+                        "uniqueItems": true,
+                        "items": {
+                          "enum": ["pc-web", "h5", "capacitor", "flutter", "tauri", "electron", "android-native", "ios-native", "harmony-native", "mini-program"]
+                        }
+                      },
+                      "originMode": { "const": "same-origin" },
+                      "deliveryMode": { "enum": ["dev-server-proxy", "gateway-static"] },
+                      "apiSurfaceId": { "const": "application.public-ingress" },
+                      "clientProcessId": { "type": "string", "minLength": 1 },
+                      "hostProcessId": { "type": "string", "minLength": 1 },
+                      "preserveCanonicalPaths": { "type": "boolean" },
+                      "buildOutput": { "type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9._/-]+$" },
+                      "runtimeRootEnv": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]+$" },
+                      "mountPath": { "const": "/" },
+                      "spaFallback": { "const": "/index.html" }
+                    },
+                    "allOf": [
+                      {
+                        "if": { "properties": { "deliveryMode": { "const": "dev-server-proxy" } }, "required": ["deliveryMode"] },
+                        "then": {
+                          "required": ["clientProcessId", "preserveCanonicalPaths"],
+                          "properties": { "preserveCanonicalPaths": { "const": true } },
+                          "not": {
+                            "anyOf": [
+                              { "required": ["hostProcessId"] },
+                              { "required": ["buildOutput"] },
+                              { "required": ["runtimeRootEnv"] },
+                              { "required": ["mountPath"] },
+                              { "required": ["spaFallback"] }
+                            ]
+                          }
+                        }
+                      },
+                      {
+                        "if": { "properties": { "deliveryMode": { "const": "gateway-static" } }, "required": ["deliveryMode"] },
+                        "then": {
+                          "required": ["hostProcessId", "buildOutput", "runtimeRootEnv", "mountPath", "spaFallback"],
+                          "not": {
+                            "anyOf": [
+                              { "required": ["clientProcessId"] },
+                              { "required": ["preserveCanonicalPaths"] }
+                            ]
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
                 "managedResources": {
                   "type": "array",
                   "items": {

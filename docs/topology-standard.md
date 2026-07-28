@@ -24,7 +24,18 @@ Those remain private hook/process facts.
 
 `standalone.development` starts exactly one standalone application gateway when
 the app serves HTTP, then declared dependencies and clients. Health checks run
-before clients.
+before clients. Embedded dependency API assemblies share that application's
+public ingress; standalone profiles cannot define `platform.api-gateway`
+server or browser URL keys, and the framework never autostarts a separate
+platform gateway for a standalone profile.
+
+Browser delivery is resolved independently from dependency assembly placement.
+Each standalone browser client declares `browserDeliveries` for the selected
+profile. Development uses `dev-server-proxy`, so the renderer bind is the
+browser-visible origin and `application.public-ingress` is a private canonical-
+path proxy target. Production uses `gateway-static`, so the application ingress
+is both the browser-visible origin and API target, with a declared build output,
+runtime asset root, mount path, and SPA fallback.
 
 `cloud.development` starts clients and explicit tunnels only. Required remote
 surfaces must have concrete deployed URLs. Under `platform-collapsed`,
@@ -38,6 +49,7 @@ The v1 runtime-plan output records:
 - local processes and canonical roles;
 - local gateway and data stores;
 - remote surfaces and Base URL provenance;
+- browser-visible origins, private API targets, and delivery-mode evidence;
 - declared access endpoints and the selected primary endpoint;
 - health checks and config sources;
 - forbidden cloud-development roles and any violating processes.

@@ -7,6 +7,10 @@ const FORBIDDEN_CLOUD_DEVELOPMENT_ROLES = Object.freeze([
   'api-standalone-gateway',
   'edge-runtime', 'database', 'redis', 'migration', 'seed', 'worker',
 ]);
+const CLIENT_ARCHITECTURES = new Set([
+  'pc-web', 'h5', 'capacitor', 'flutter', 'tauri', 'electron',
+  'android-native', 'ios-native', 'harmony-native', 'mini-program',
+]);
 
 function remoteUrl(value) {
   try {
@@ -15,6 +19,151 @@ function remoteUrl(value) {
   } catch {
     return false;
   }
+}
+
+function urlOrigin(value, label) {
+  try {
+    const url = new URL(value);
+    if (!['http:', 'https:'].includes(url.protocol)) throw new Error('unsupported protocol');
+    return url.origin;
+  } catch {
+    throw new Error(`${label} must resolve to an absolute HTTP(S) URL`);
+  }
+}
+
+function browserOriginFromBind(value, label) {
+  const binding = String(value ?? '').trim();
+  const bracketed = /^\[([^\]]+)\]:(\d+)$/u.exec(binding);
+  const plain = /^([^:]+):(\d+)$/u.exec(binding);
+  const match = bracketed ?? plain;
+  if (!match) throw new Error(`${label} must resolve to <host>:<port>`);
+  const port = Number(match[2]);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error(`${label} must resolve to a valid TCP port`);
+  }
+  const rawHost = match[1];
+  const host = ['0.0.0.0', '::'].includes(rawHost) ? '127.0.0.1' : rawHost;
+  const formattedHost = host.includes(':') ? `[${host}]` : host;
+  return `http://${formattedHost}:${port}`;
+}
+
+function sameStringSet(left, right) {
+  return Array.isArray(left)
+    && Array.isArray(right)
+    && left.length === right.length
+    && left.every((value) => right.includes(value));
+}
+
+function resolveBrowserDeliveries({
+  profileId,
+  profile,
+  processes,
+  profileEnv,
+  resolvedBaseUrls,
+  clientArchitecture,
+}) {
+  const ids = new Set();
+  const declared = profile.browserDeliveries ?? [];
+  for (const delivery of declared) {
+    if (!Array.isArray(delivery.clientArchitectures)
+      || delivery.clientArchitectures.length === 0
+      || new Set(delivery.clientArchitectures).size !== delivery.clientArchitectures.length
+      || delivery.clientArchitectures.some((value) => !CLIENT_ARCHITECTURES.has(value))) {
+      throw new Error(`${profileId} browser delivery ${delivery.id} requires canonical clientArchitectures`);
+    }
+  }
+  return declared
+    .filter((delivery) => (
+      !clientArchitecture || delivery.clientArchitectures.includes(clientArchitecture)
+    ))
+    .map((delivery) => {
+      if (ids.has(delivery.id)) {
+        throw new Error(`${profileId} contains duplicate browser delivery ${delivery.id}`);
+      }
+      ids.add(delivery.id);
+      if (delivery.originMode !== 'same-origin') {
+        throw new Error(`${profileId} browser delivery ${delivery.id} must use originMode same-origin`);
+      }
+      if (delivery.apiSurfaceId !== 'application.public-ingress') {
+        throw new Error(`${profileId} browser delivery ${delivery.id} must target application.public-ingress`);
+      }
+      if (profileId === 'standalone.development'
+        && delivery.deliveryMode !== 'dev-server-proxy') {
+        throw new Error(`${profileId} browser delivery ${delivery.id} must use dev-server-proxy`);
+      }
+      if (profileId === 'standalone.production'
+        && delivery.deliveryMode !== 'gateway-static') {
+        throw new Error(`${profileId} browser delivery ${delivery.id} must use gateway-static`);
+      }
+      const apiTarget = resolvedBaseUrls[delivery.apiSurfaceId];
+      if (!apiTarget) {
+        throw new Error(`${profileId} browser delivery ${delivery.id} cannot resolve ${delivery.apiSurfaceId}`);
+      }
+      const apiTargetOrigin = urlOrigin(
+        apiTarget,
+        `${profileId} browser delivery ${delivery.id} API target`,
+      );
+
+      if (delivery.deliveryMode === 'dev-server-proxy') {
+        const client = processes.find((process) => process.id === delivery.clientProcessId);
+        if (!client || client.role !== 'client' || !client.bindEnv) {
+          throw new Error(`${profileId} browser delivery ${delivery.id} requires a selected client process with bindEnv`);
+        }
+        if (!sameStringSet(delivery.clientArchitectures, client.clientArchitectures)) {
+          throw new Error(`${profileId} browser delivery ${delivery.id} must match its client process architectures`);
+        }
+        if (delivery.preserveCanonicalPaths !== true) {
+          throw new Error(`${profileId} browser delivery ${delivery.id} must preserve canonical API paths`);
+        }
+        return {
+          id: delivery.id,
+          applicationRoot: delivery.applicationRoot,
+          clientArchitectures: delivery.clientArchitectures,
+          originMode: delivery.originMode,
+          deliveryMode: delivery.deliveryMode,
+          apiSurfaceId: delivery.apiSurfaceId,
+          browserVisibleOrigin: browserOriginFromBind(
+            profileEnv[client.bindEnv],
+            `${profileId} ${client.bindEnv}`,
+          ),
+          apiTargetOrigin,
+          clientProcessId: delivery.clientProcessId,
+          preserveCanonicalPaths: true,
+        };
+      }
+
+      if (delivery.deliveryMode === 'gateway-static') {
+        const host = processes.find((process) => process.id === delivery.hostProcessId);
+        if (!host || host.role !== 'api-standalone-gateway') {
+          throw new Error(`${profileId} browser delivery ${delivery.id} requires an api-standalone-gateway host process`);
+        }
+        const runtimeRoot = profileEnv[delivery.runtimeRootEnv];
+        if (!runtimeRoot) {
+          throw new Error(`${profileId} browser delivery ${delivery.id} requires ${delivery.runtimeRootEnv}`);
+        }
+        if (delivery.mountPath !== '/' || delivery.spaFallback !== '/index.html') {
+          throw new Error(`${profileId} browser delivery ${delivery.id} requires root mount and /index.html SPA fallback`);
+        }
+        return {
+          id: delivery.id,
+          applicationRoot: delivery.applicationRoot,
+          clientArchitectures: delivery.clientArchitectures,
+          originMode: delivery.originMode,
+          deliveryMode: delivery.deliveryMode,
+          apiSurfaceId: delivery.apiSurfaceId,
+          browserVisibleOrigin: apiTargetOrigin,
+          apiTargetOrigin,
+          hostProcessId: delivery.hostProcessId,
+          buildOutput: delivery.buildOutput,
+          runtimeRootEnv: delivery.runtimeRootEnv,
+          runtimeRoot,
+          mountPath: '/',
+          spaFallback: '/index.html',
+        };
+      }
+
+      throw new Error(`${profileId} browser delivery ${delivery.id} uses an unsupported deliveryMode`);
+    });
 }
 
 export function createResolvedRuntimePlan(
@@ -28,6 +177,14 @@ export function createResolvedRuntimePlan(
   if (!profile) throw new Error(`missing orchestration profile ${profileId}`);
   const profileEnv = profileEnvOverride ?? runtime.loadProfile(profileId);
   const { deploymentProfile, environment } = runtime.parseProfileId(profileId);
+  if (deploymentProfile === 'standalone') {
+    const platformSurface = runtime.spec.surfaces?.['platform.api-gateway'];
+    for (const key of [platformSurface?.httpUrlEnv, platformSurface?.clientHttpEnv]) {
+      if (key && profileEnv[key]) {
+        throw new Error(`${profileId} forbids platform.api-gateway URL key ${key}`);
+      }
+    }
+  }
   const processes = (profile.processes ?? []).filter((process) => {
     const runtimeMatches = !Array.isArray(process.runtimeTargets)
       || process.runtimeTargets.length === 0
@@ -90,6 +247,14 @@ export function createResolvedRuntimePlan(
     remoteSurfaces,
     resolvedBaseUrls,
     endpointProvenance,
+    browserDeliveries: resolveBrowserDeliveries({
+      profileId,
+      profile,
+      processes,
+      profileEnv,
+      resolvedBaseUrls,
+      clientArchitecture,
+    }),
     accessEndpoints,
     primaryAccessEndpoint:
       accessEndpoints.find((endpoint) => endpoint.primary) ?? null,

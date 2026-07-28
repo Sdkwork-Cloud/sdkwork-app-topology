@@ -50,6 +50,18 @@ function fixture() {
               clientArchitectures: ['pc-web'],
             },
           ],
+          browserDeliveries: [
+            {
+              id: 'web-client',
+              applicationRoot: 'apps/sdkwork-demo-pc',
+              clientArchitectures: ['pc-web'],
+              originMode: 'same-origin',
+              deliveryMode: 'dev-server-proxy',
+              apiSurfaceId: 'application.public-ingress',
+              clientProcessId: 'web-client',
+              preserveCanonicalPaths: true,
+            },
+          ],
           accessEndpoints: [
             {
               id: 'application-ui',
@@ -147,6 +159,128 @@ test('resolves declared process and surface access endpoints into the runtime pl
     },
   ]);
   assert.equal(plan.primaryAccessEndpoint.id, 'application-ui');
+  assert.deepEqual(plan.browserDeliveries, [
+    {
+      id: 'web-client',
+      applicationRoot: 'apps/sdkwork-demo-pc',
+      clientArchitectures: ['pc-web'],
+      originMode: 'same-origin',
+      deliveryMode: 'dev-server-proxy',
+      apiSurfaceId: 'application.public-ingress',
+      browserVisibleOrigin: 'http://127.0.0.1:4173',
+      apiTargetOrigin: 'http://127.0.0.1:8080',
+      clientProcessId: 'web-client',
+      preserveCanonicalPaths: true,
+    },
+  ]);
+});
+
+test('resolves gateway-static browser delivery to the application ingress origin', () => {
+  const { root, spec, specPath } = fixture();
+  spec.profileFiles['standalone.production'] = 'etc/topology/standalone.production.env';
+  spec.orchestration.profiles['standalone.production'] = {
+    processes: [
+      { id: 'standalone-gateway', role: 'api-standalone-gateway' },
+    ],
+    browserDeliveries: [
+      {
+        id: 'web-client',
+        applicationRoot: 'apps/sdkwork-demo-pc',
+        clientArchitectures: ['pc-web'],
+        originMode: 'same-origin',
+        deliveryMode: 'gateway-static',
+        apiSurfaceId: 'application.public-ingress',
+        hostProcessId: 'standalone-gateway',
+        buildOutput: 'apps/sdkwork-demo-pc/dist',
+        runtimeRootEnv: 'SDKWORK_DEMO_PC_STATIC_ROOT',
+        mountPath: '/',
+        spaFallback: '/index.html',
+      },
+    ],
+  };
+  fs.writeFileSync(path.join(root, 'etc', 'topology', 'standalone.production.env'), [
+    'SDKWORK_DEMO_PROFILE_ID=standalone.production',
+    'APP_URL=https://demo.example.com',
+    'SDKWORK_DEMO_PC_STATIC_ROOT=share/sdkwork/demo-pc',
+    '',
+  ].join('\n'));
+
+  validateTopologySpec(spec, specPath);
+  const runtime = createTopologyRuntime(spec, root, specPath);
+  assert.deepEqual(runtime.resolvePlan('standalone.production', 'browser').browserDeliveries, [
+    {
+      id: 'web-client',
+      applicationRoot: 'apps/sdkwork-demo-pc',
+      clientArchitectures: ['pc-web'],
+      originMode: 'same-origin',
+      deliveryMode: 'gateway-static',
+      apiSurfaceId: 'application.public-ingress',
+      browserVisibleOrigin: 'https://demo.example.com',
+      apiTargetOrigin: 'https://demo.example.com',
+      hostProcessId: 'standalone-gateway',
+      buildOutput: 'apps/sdkwork-demo-pc/dist',
+      runtimeRootEnv: 'SDKWORK_DEMO_PC_STATIC_ROOT',
+      runtimeRoot: 'share/sdkwork/demo-pc',
+      mountPath: '/',
+      spaFallback: '/index.html',
+    },
+  ]);
+});
+
+test('rejects a dev browser delivery whose architecture drifts from its client process', () => {
+  const { spec, specPath } = fixture();
+  spec.orchestration.profiles['standalone.development'].browserDeliveries[0].clientArchitectures = ['h5'];
+  assert.throws(
+    () => validateTopologySpec(spec, specPath),
+    /clientArchitectures must match its client process/u,
+  );
+});
+
+test('rejects browser delivery modes that conflict with the standalone lifecycle profile', () => {
+  const development = fixture();
+  development.spec.orchestration.profiles['standalone.development']
+    .browserDeliveries[0].deliveryMode = 'gateway-static';
+  assert.throws(
+    () => validateTopologySpec(development.spec, development.specPath),
+    /standalone\.development browser delivery .* must use dev-server-proxy/u,
+  );
+
+  const production = fixture();
+  production.spec.profileFiles['standalone.production'] =
+    'etc/topology/standalone.production.env';
+  production.spec.orchestration.profiles['standalone.production'] = {
+    processes: [
+      { id: 'standalone-gateway', role: 'api-standalone-gateway' },
+    ],
+    browserDeliveries: [
+      {
+        id: 'web-client',
+        applicationRoot: 'apps/sdkwork-demo-pc',
+        clientArchitectures: ['pc-web'],
+        originMode: 'same-origin',
+        deliveryMode: 'dev-server-proxy',
+        apiSurfaceId: 'application.public-ingress',
+        clientProcessId: 'web-client',
+        preserveCanonicalPaths: true,
+      },
+    ],
+  };
+  assert.throws(
+    () => validateTopologySpec(production.spec, production.specPath),
+    /standalone\.production browser delivery .* must use gateway-static/u,
+  );
+});
+
+test('rejects non-HTTP application ingress origins in resolved browser deliveries', () => {
+  const { root, spec, specPath } = fixture();
+  const runtime = createTopologyRuntime(spec, root, specPath);
+  const profileEnv = runtime.loadProfile('standalone.development');
+  assert.throws(
+    () => runtime.resolvePlan('standalone.development', 'browser', 'pc-web', {
+      profileEnv: { ...profileEnv, APP_URL: 'file:///tmp/sdkwork-web' },
+    }),
+    /API target must resolve to an absolute HTTP\(S\) URL/u,
+  );
 });
 
 test('resolves access endpoints from the effective profile environment', () => {
@@ -249,7 +383,7 @@ test('rejects retired service layouts and allows independent remote surface orig
   assert.equal(plan.resolvedBaseUrls['platform.api-gateway'], 'https://api.dev.sdkwork.com');
 });
 
-test('allows standalone application and platform surfaces to use different origins', () => {
+test('rejects platform gateway URLs from standalone profiles', () => {
   const { root, spec, specPath } = fixture();
   fs.writeFileSync(path.join(root, 'etc', 'topology', 'standalone.development.env'), [
     'SDKWORK_DEMO_PROFILE_ID=standalone.development',
@@ -258,9 +392,10 @@ test('allows standalone application and platform surfaces to use different origi
     '',
   ].join('\n'));
   const runtime = createTopologyRuntime(spec, root, specPath);
-  const plan = runtime.resolvePlan('standalone.development', 'server');
-  assert.equal(plan.resolvedBaseUrls['application.public-ingress'], 'http://127.0.0.1:8080');
-  assert.equal(plan.resolvedBaseUrls['platform.api-gateway'], 'http://127.0.0.1:3900');
+  assert.throws(
+    () => runtime.resolvePlan('standalone.development', 'server'),
+    /standalone\.development forbids platform\.api-gateway URL key PLATFORM_URL/u,
+  );
 });
 
 test('bundled topology v5 schema stays aligned with the canonical standards schema', () => {

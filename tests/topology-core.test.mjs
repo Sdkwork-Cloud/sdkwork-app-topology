@@ -81,7 +81,8 @@ test('loads the self-contained sdkwork-drive v5 topology spec and profile', () =
   const runtime = createTopologyRuntime(spec, frameworkRoot, specPath);
   const profile = runtime.loadProfile('standalone.development');
   assert.equal(profile.SDKWORK_DRIVE_DEPLOYMENT_PROFILE, 'standalone');
-  assert.equal(profile.SDKWORK_DRIVE_PLATFORM_API_GATEWAY_HTTP_URL, 'http://127.0.0.1:3900');
+  assert.equal(profile.SDKWORK_DRIVE_APPLICATION_PUBLIC_HTTP_URL, 'http://127.0.0.1:3900');
+  assert.equal(profile.SDKWORK_DRIVE_PLATFORM_API_GATEWAY_HTTP_URL, undefined);
 });
 
 test('v4 topology supports SDKWork v4 two-segment profile ids', () => {
@@ -148,6 +149,24 @@ test('resolveIamDevEnv injects application bootstrap roots from repo root', () =
   assert.equal(env.SDKWORK_DRIVE_APP_ROOT, frameworkRoot);
 });
 
+test('resolveIamDevEnv preserves process database governance controls', () => {
+  const specPath = path.join(frameworkRoot, 'examples/sdkwork-drive/topology.spec.json');
+  const spec = loadTopologySpec(specPath);
+  const runtime = createTopologyRuntime(spec, frameworkRoot, specPath);
+  const env = runtime.resolveIamDevEnv(
+    {
+      SDKWORK_DATABASE_TEMPORARY_ANY_POOL_EXCEPTION: 'true',
+      SDKWORK_DATABASE_TEMPORARY_DRIVER_POOL_COUNT: '1',
+      SDKWORK_DATABASE_URL: 'postgresql://discarded-runtime-identity',
+    },
+    { ensurePostgresEnvFile: false },
+  );
+
+  assert.equal(env.SDKWORK_DATABASE_TEMPORARY_ANY_POOL_EXCEPTION, 'true');
+  assert.equal(env.SDKWORK_DATABASE_TEMPORARY_DRIVER_POOL_COUNT, '1');
+  assert.notEqual(env.SDKWORK_DATABASE_URL, 'postgresql://discarded-runtime-identity');
+});
+
 test('resolves standalone and cloud surfaces from the self-contained v5 fixture', () => {
   const specPath = path.join(frameworkRoot, 'examples/sdkwork-drive/topology.spec.json');
   const spec = loadTopologySpec(specPath);
@@ -161,7 +180,7 @@ test('resolves standalone and cloud surfaces from the self-contained v5 fixture'
   );
   assert.equal(
     runtime.resolveSurfaceHttpUrl(profile, 'platform.api-gateway'),
-    'http://127.0.0.1:3900',
+    undefined,
   );
   const cloudProfile = runtime.loadProfile('cloud.development');
   assert.equal(

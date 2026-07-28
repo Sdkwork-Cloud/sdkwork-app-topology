@@ -265,6 +265,9 @@ export function createTopologyRuntimeV2(spec, repoRoot) {
     findPackageTarget: (targetId) => findPackageTarget(spec, targetId),
     ...surfaces,
     shouldAutostartGateway: (env) => {
+      if (normalizeText(env[deploymentProfileKey]) === 'standalone') {
+        return false;
+      }
       if (spec.surfaces?.['platform.api-gateway']) {
         return surfaces.resolveSurfaceAutostart(env, 'platform.api-gateway', true);
       }

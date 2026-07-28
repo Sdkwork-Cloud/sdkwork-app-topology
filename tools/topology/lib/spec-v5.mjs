@@ -119,6 +119,71 @@ export function validateTopologySpecV5(spec, specPath = 'topology.spec.json') {
         throw new Error(`${specPath} cloud.development forbids local process role ${process.role}`);
       }
     }
+    const browserDeliveryIds = new Set();
+    for (const delivery of profile.browserDeliveries ?? []) {
+      const label = `${specPath} ${profileId} browser delivery ${delivery.id ?? '<missing>'}`;
+      if (!/^[a-z0-9][a-z0-9.-]*$/u.test(normalizeText(delivery.id))) {
+        throw new Error(`${label} id must use lowercase dot/kebab tokens`);
+      }
+      if (browserDeliveryIds.has(delivery.id)) {
+        throw new Error(`${label} is duplicated`);
+      }
+      browserDeliveryIds.add(delivery.id);
+      if (!normalizeText(delivery.applicationRoot) || /^[/\\]|(?:^|[/\\])\.\.(?:[/\\]|$)/u.test(delivery.applicationRoot)) {
+        throw new Error(`${label} applicationRoot must be a safe relative path`);
+      }
+      if (!Array.isArray(delivery.clientArchitectures)
+        || delivery.clientArchitectures.length === 0
+        || new Set(delivery.clientArchitectures).size !== delivery.clientArchitectures.length
+        || delivery.clientArchitectures.some((architecture) => !CLIENT_ARCHITECTURES.includes(architecture))) {
+        throw new Error(`${label} clientArchitectures must contain unique canonical client architectures`);
+      }
+      if (delivery.originMode !== 'same-origin') {
+        throw new Error(`${label} originMode must be same-origin`);
+      }
+      if (delivery.apiSurfaceId !== 'application.public-ingress') {
+        throw new Error(`${label} apiSurfaceId must be application.public-ingress`);
+      }
+      if (profileId === 'standalone.development'
+        && delivery.deliveryMode !== 'dev-server-proxy') {
+        throw new Error(`${label} must use dev-server-proxy`);
+      }
+      if (profileId === 'standalone.production'
+        && delivery.deliveryMode !== 'gateway-static') {
+        throw new Error(`${label} must use gateway-static`);
+      }
+      if (delivery.deliveryMode === 'dev-server-proxy') {
+        const client = processesById.get(delivery.clientProcessId);
+        if (!client || client.role !== 'client' || !normalizeText(client.bindEnv)) {
+          throw new Error(`${label} requires a clientProcessId that references a client with bindEnv`);
+        }
+        if (delivery.preserveCanonicalPaths !== true) {
+          throw new Error(`${label} must preserve canonical API paths`);
+        }
+        if (!Array.isArray(client.clientArchitectures)
+          || client.clientArchitectures.length !== delivery.clientArchitectures.length
+          || !delivery.clientArchitectures.every((architecture) => client.clientArchitectures.includes(architecture))) {
+          throw new Error(`${label} clientArchitectures must match its client process`);
+        }
+      } else if (delivery.deliveryMode === 'gateway-static') {
+        const host = processesById.get(delivery.hostProcessId);
+        if (!host || host.role !== 'api-standalone-gateway') {
+          throw new Error(`${label} requires a gateway hostProcessId`);
+        }
+        if (!normalizeText(delivery.buildOutput)
+          || /^[/\\]|(?:^|[/\\])\.\.(?:[/\\]|$)/u.test(delivery.buildOutput)) {
+          throw new Error(`${label} buildOutput must be a safe relative path`);
+        }
+        if (!/^[A-Z][A-Z0-9_]+$/u.test(delivery.runtimeRootEnv ?? '')) {
+          throw new Error(`${label} runtimeRootEnv must be an environment key`);
+        }
+        if (delivery.mountPath !== '/' || delivery.spaFallback !== '/index.html') {
+          throw new Error(`${label} requires mountPath / and spaFallback /index.html`);
+        }
+      } else {
+        throw new Error(`${label} requires a canonical deliveryMode`);
+      }
+    }
     const accessEndpointIds = new Set();
     for (const endpoint of profile.accessEndpoints ?? []) {
       if (!/^[a-z0-9][a-z0-9.-]*$/u.test(normalizeText(endpoint.id))) {

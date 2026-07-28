@@ -159,11 +159,15 @@ export function createIamDatabaseHelpers(spec) {
 
     const runtimeWithoutDatabase = { ...env };
     for (const key of Object.keys(runtimeWithoutDatabase)) {
+      const processDatabaseControl = key.startsWith('SDKWORK_DATABASE_TEMPORARY_');
       if (
-        key.startsWith('SDKWORK_CLAW_DATABASE_')
-        || key.startsWith('SDKWORK_IAM_DATABASE_')
-        || key.startsWith('SDKWORK_DATABASE_')
-        || /^SDKWORK_[A-Z0-9_]+_DATABASE_/u.test(key)
+        !processDatabaseControl
+        && (
+          key.startsWith('SDKWORK_CLAW_DATABASE_')
+          || key.startsWith('SDKWORK_IAM_DATABASE_')
+          || key.startsWith('SDKWORK_DATABASE_')
+          || /^SDKWORK_[A-Z0-9_]+_DATABASE_/u.test(key)
+        )
       ) {
         delete runtimeWithoutDatabase[key];
       }
