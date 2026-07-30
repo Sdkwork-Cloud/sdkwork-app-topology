@@ -1,77 +1,17 @@
 import { ensurePostgresDevEnvFile, loadEnvFile, normalizeText } from './env-file.mjs';
 import { isTcpPortReachable } from './postgres.mjs';
 import {
-  buildPostgresDatabaseUrl,
   resolveClawDatabaseEnv,
   resolveClawDatabaseUrlFromEnv,
 } from './claw-database.mjs';
 
 export function createIamDatabaseHelpers(spec) {
-  const databaseKeys = spec.database ?? {};
-  const appPrefix = databaseKeys.appPrefix ?? 'SDKWORK_APP';
-
   function resolveIamDatabaseEnv(env) {
-    const merged = resolveClawDatabaseEnv({ ...env });
-
-    const existingUrl = normalizeText(merged.SDKWORK_IAM_DATABASE_URL)
-      || normalizeText(merged.SDKWORK_CLAW_DATABASE_URL)
-      || normalizeText(merged.SDKWORK_DATABASE_URL)
-      || normalizeText(merged.DATABASE_URL);
-    if (existingUrl) {
-      merged.SDKWORK_IAM_DATABASE_URL = merged.SDKWORK_IAM_DATABASE_URL || existingUrl;
-      merged.SDKWORK_CLAW_DATABASE_URL = merged.SDKWORK_CLAW_DATABASE_URL || existingUrl;
-      merged.SDKWORK_DATABASE_URL = merged.SDKWORK_DATABASE_URL || existingUrl;
-      return merged;
-    }
-
-    const clawUrl = resolveClawDatabaseUrlFromEnv(merged);
-    if (clawUrl) {
-      merged.SDKWORK_IAM_DATABASE_URL = clawUrl;
-      merged.SDKWORK_CLAW_DATABASE_URL = clawUrl;
-      merged.SDKWORK_DATABASE_URL = clawUrl;
-      return merged;
-    }
-
-    const appUrlKey = databaseKeys.url ?? `${appPrefix}_DATABASE_URL`;
-    const appUrl = normalizeText(merged[appUrlKey]);
-    if (appUrl && (appUrl.startsWith('postgres://') || appUrl.startsWith('postgresql://'))) {
-      merged.SDKWORK_IAM_DATABASE_URL = appUrl;
-      merged.SDKWORK_DATABASE_URL = appUrl;
-      merged.SDKWORK_CLAW_DATABASE_URL = appUrl;
-      return merged;
-    }
-
-    const engineKey = databaseKeys.engine ?? `${appPrefix}_DATABASE_ENGINE`;
-    const engine = normalizeText(merged[engineKey])?.toLowerCase();
-    if (engine === 'postgresql' || engine === 'postgres') {
-      const host = normalizeText(merged[databaseKeys.host ?? `${appPrefix}_DATABASE_HOST`]);
-      const database = normalizeText(merged[databaseKeys.name ?? `${appPrefix}_DATABASE_NAME`]);
-      const username = normalizeText(merged[databaseKeys.username ?? `${appPrefix}_DATABASE_USERNAME`]);
-      const password = merged[databaseKeys.password ?? `${appPrefix}_DATABASE_PASSWORD`];
-      if (host && database && username && password !== undefined) {
-        const port = normalizeText(merged[databaseKeys.port ?? `${appPrefix}_DATABASE_PORT`]) || '5432';
-        const sslMode = normalizeText(merged[databaseKeys.sslMode ?? `${appPrefix}_DATABASE_SSL_MODE`]) || 'disable';
-        const url = buildPostgresDatabaseUrl({
-          host,
-          port,
-          database,
-          username,
-          password: password ?? '',
-          sslMode,
-        });
-        merged.SDKWORK_IAM_DATABASE_URL = url;
-        merged.SDKWORK_DATABASE_URL = url;
-        merged.SDKWORK_CLAW_DATABASE_URL = url;
-      }
-    }
-
-    return merged;
+    return resolveClawDatabaseEnv({ ...env });
   }
 
   function describeIamDatabaseTarget(env) {
-    const url = normalizeText(env.SDKWORK_IAM_DATABASE_URL)
-      || normalizeText(env.SDKWORK_CLAW_DATABASE_URL)
-      || normalizeText(env.SDKWORK_DATABASE_URL);
+    const url = normalizeText(env.SDKWORK_DATABASE_URL);
     if (url) {
       try {
         const parsed = new URL(url);
@@ -82,13 +22,9 @@ export function createIamDatabaseHelpers(spec) {
       }
     }
 
-    const host = normalizeText(env.SDKWORK_CLAW_DATABASE_HOST)
-      || normalizeText(env[databaseKeys.host ?? `${appPrefix}_DATABASE_HOST`]);
-    const port = normalizeText(env.SDKWORK_CLAW_DATABASE_PORT)
-      || normalizeText(env[databaseKeys.port ?? `${appPrefix}_DATABASE_PORT`])
-      || '5432';
-    const database = normalizeText(env.SDKWORK_CLAW_DATABASE_NAME)
-      || normalizeText(env[databaseKeys.name ?? `${appPrefix}_DATABASE_NAME`]);
+    const host = normalizeText(env.SDKWORK_DATABASE_HOST);
+    const port = normalizeText(env.SDKWORK_DATABASE_PORT) || '5432';
+    const database = normalizeText(env.SDKWORK_DATABASE_NAME);
     if (host && database) {
       return `${host}:${port}/${database}`;
     }
@@ -119,13 +55,12 @@ export function createIamDatabaseHelpers(spec) {
   }
 
   async function assertPostgresReachableForIam(env, options = {}) {
-    const url = normalizeText(env.SDKWORK_IAM_DATABASE_URL)
-      || normalizeText(env.SDKWORK_CLAW_DATABASE_URL)
-      || normalizeText(env.SDKWORK_DATABASE_URL);
+    const url = normalizeText(env.SDKWORK_DATABASE_URL)
+      || resolveClawDatabaseUrlFromEnv(env);
     if (!url) {
       throw new Error(
         options.missingDatabaseMessage
-          ?? 'IAM requires PostgreSQL for dev login. Configure .env.postgres with SDKWORK_CLAW_DATABASE_* and start PostgreSQL.',
+          ?? 'IAM requires PostgreSQL for dev login. Configure .env.postgres with SDKWORK_DATABASE_* and start PostgreSQL.',
       );
     }
 
@@ -159,15 +94,13 @@ export function createIamDatabaseHelpers(spec) {
 
     const runtimeWithoutDatabase = { ...env };
     for (const key of Object.keys(runtimeWithoutDatabase)) {
+      if (/^SDKWORK_(?!DATABASE_)[A-Z0-9_]+_DATABASE_/u.test(key)) {
+        throw new Error(`${key} is retired; use SDKWORK_DATABASE_*`);
+      }
       const processDatabaseControl = key.startsWith('SDKWORK_DATABASE_TEMPORARY_');
       if (
         !processDatabaseControl
-        && (
-          key.startsWith('SDKWORK_CLAW_DATABASE_')
-          || key.startsWith('SDKWORK_IAM_DATABASE_')
-          || key.startsWith('SDKWORK_DATABASE_')
-          || /^SDKWORK_[A-Z0-9_]+_DATABASE_/u.test(key)
-        )
+        && key.startsWith('SDKWORK_DATABASE_')
       ) {
         delete runtimeWithoutDatabase[key];
       }

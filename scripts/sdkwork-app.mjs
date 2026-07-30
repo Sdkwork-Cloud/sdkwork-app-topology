@@ -174,11 +174,15 @@ function resolveSurfaceHealthOptions(surface = {}) {
   };
 }
 
-async function waitForPlanHealth(plan, runtime) {
+async function waitForPlanHealth(plan, runtime, signal) {
   for (const check of plan.healthChecks) {
     if (!check.url) throw new Error(`missing health URL for ${check.surfaceId}`);
     const surface = runtime.spec.surfaces[check.surfaceId] ?? {};
-    const healthy = await waitForHttpHealthy(check.url, resolveSurfaceHealthOptions(surface));
+    const healthy = await waitForHttpHealthy(check.url, {
+      ...resolveSurfaceHealthOptions(surface),
+      signal,
+    });
+    if (signal?.aborted) return;
     if (!healthy) throw new Error(`health check failed for ${check.surfaceId}: ${check.url}`);
   }
 }
@@ -299,10 +303,14 @@ async function runGenericDevelopment(repoRoot, runtime, plan, env, dryRun) {
       env: childEnv,
       detached: process.platform !== 'win32',
     });
-    children.push(child);
+    children.push({
+      child,
+      entry,
+      result: waitForChild(child),
+    });
     refreshSession();
   };
-  const terminate = () => children.forEach((child) => {
+  const terminate = () => children.forEach(({ child }) => {
     if (child.killed) return;
     if (process.platform === 'win32') {
       child.kill('SIGTERM');
@@ -325,7 +333,9 @@ async function runGenericDevelopment(repoRoot, runtime, plan, env, dryRun) {
   };
   const refreshSession = () => writeDevelopmentSession(repoRoot, {
     ...session,
-    childPids: children.map((child) => child.pid).filter((pid) => Number.isSafeInteger(pid) && pid > 0),
+    childPids: children
+      .map(({ child }) => child.pid)
+      .filter((pid) => Number.isSafeInteger(pid) && pid > 0),
   });
   let resolveSignal;
   const signalReceived = new Promise((resolve) => { resolveSignal = resolve; });
@@ -341,18 +351,34 @@ async function runGenericDevelopment(repoRoot, runtime, plan, env, dryRun) {
   try {
     reconcileManagedResources(plan.managedResources, env, 'provision');
     early.forEach(launch);
-    const stoppedDuringHealthCheck = await Promise.race([
-      waitForPlanHealth(plan, runtime).then(() => false),
-      signalReceived,
-    ]);
-    if (stoppedDuringHealthCheck) return;
+    const startupAbort = new AbortController();
+    let startup;
+    try {
+      startup = await Promise.race([
+        waitForPlanHealth(plan, runtime, startupAbort.signal).then(() => ({ kind: 'healthy' })),
+        signalReceived.then(() => ({ kind: 'signal' })),
+        ...children.map(({ entry, result }) => result.then((outcome) => ({
+          kind: 'early-exit',
+          entry,
+          outcome,
+        }))),
+      ]);
+    } finally {
+      startupAbort.abort();
+    }
+    if (startup.kind === 'signal') return;
+    if (startup.kind === 'early-exit') {
+      throw new Error(
+        `development process ${startup.entry.id} exited with code ${startup.outcome.code} before required health checks completed`,
+      );
+    }
     clients.forEach(launch);
     for (const line of developmentAccessLines(plan)) {
       console.log(line);
     }
     if (children.length === 0) throw new Error('development plan has no local processes; declare a client process or private _sdkwork:dev hook');
     const first = await Promise.race([
-      ...children.map(waitForChild),
+      ...children.map(({ result }) => result),
       signalReceived.then(() => ({ code: 0, signal: 'SIGTERM' })),
     ]);
     if (first.code !== 0) throw new Error(`development process exited with code ${first.code}`);
@@ -612,6 +638,7 @@ export {
   passthroughArgs,
   readDevelopmentSession,
   removeDevelopmentSession,
+  runGenericDevelopment,
   resolveClientApplicationRoot,
   resolveSurfaceHealthOptions,
   sameModulePath,

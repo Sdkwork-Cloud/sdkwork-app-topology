@@ -10,13 +10,13 @@ import { createIamDatabaseHelpers } from '../tools/topology/lib/iam-database.mjs
 
 test('resolveClawDatabaseUrlFromEnv builds canonical development URL', () => {
   const url = resolveClawDatabaseUrlFromEnv({
-    SDKWORK_CLAW_DATABASE_ENGINE: 'postgresql',
-    SDKWORK_CLAW_DATABASE_HOST: CANONICAL_DEV_CLAW_DATABASE.host,
-    SDKWORK_CLAW_DATABASE_PORT: CANONICAL_DEV_CLAW_DATABASE.port,
-    SDKWORK_CLAW_DATABASE_NAME: CANONICAL_DEV_CLAW_DATABASE.name,
-    SDKWORK_CLAW_DATABASE_USERNAME: CANONICAL_DEV_CLAW_DATABASE.username,
-    SDKWORK_CLAW_DATABASE_PASSWORD: CANONICAL_DEV_CLAW_DATABASE.password,
-    SDKWORK_CLAW_DATABASE_SSL_MODE: CANONICAL_DEV_CLAW_DATABASE.sslMode,
+    SDKWORK_DATABASE_ENGINE: 'postgresql',
+    SDKWORK_DATABASE_HOST: CANONICAL_DEV_CLAW_DATABASE.host,
+    SDKWORK_DATABASE_PORT: CANONICAL_DEV_CLAW_DATABASE.port,
+    SDKWORK_DATABASE_NAME: CANONICAL_DEV_CLAW_DATABASE.name,
+    SDKWORK_DATABASE_USERNAME: CANONICAL_DEV_CLAW_DATABASE.username,
+    SDKWORK_DATABASE_PASSWORD: CANONICAL_DEV_CLAW_DATABASE.password,
+    SDKWORK_DATABASE_SSL_MODE: CANONICAL_DEV_CLAW_DATABASE.sslMode,
   });
 
   assert.equal(
@@ -25,46 +25,44 @@ test('resolveClawDatabaseUrlFromEnv builds canonical development URL', () => {
   );
 });
 
-test('resolveIamDatabaseEnv prefers claw profile over per-app database fields', () => {
+test('resolveIamDatabaseEnv uses only the canonical workspace profile', () => {
   const iam = createIamDatabaseHelpers({
     database: { appPrefix: 'SDKWORK_KNOWLEDGEBASE' },
   });
 
   const resolved = iam.resolveIamDatabaseEnv({
-    SDKWORK_CLAW_DATABASE_ENGINE: 'postgresql',
-    SDKWORK_CLAW_DATABASE_HOST: '127.0.0.1',
-    SDKWORK_CLAW_DATABASE_PORT: '5432',
-    SDKWORK_CLAW_DATABASE_NAME: 'sdkwork_ai_dev',
-    SDKWORK_CLAW_DATABASE_USERNAME: 'sdkwork_ai_dev',
-    SDKWORK_CLAW_DATABASE_PASSWORD: 'sdkworkdev123',
-    SDKWORK_CLAW_DATABASE_SSL_MODE: 'disable',
-    SDKWORK_KNOWLEDGEBASE_DATABASE_ENGINE: 'postgresql',
-    SDKWORK_KNOWLEDGEBASE_DATABASE_HOST: '127.0.0.1',
-    SDKWORK_KNOWLEDGEBASE_DATABASE_PORT: '5432',
-    SDKWORK_KNOWLEDGEBASE_DATABASE_NAME: 'sdkwork_ai_dev',
-    SDKWORK_KNOWLEDGEBASE_DATABASE_USERNAME: 'sdkworkdev',
-    SDKWORK_KNOWLEDGEBASE_DATABASE_PASSWORD: 'sdkwork_dev_password',
-    SDKWORK_KNOWLEDGEBASE_DATABASE_SSL_MODE: 'disable',
+    SDKWORK_DATABASE_ENGINE: 'postgresql',
+    SDKWORK_DATABASE_HOST: '127.0.0.1',
+    SDKWORK_DATABASE_PORT: '5432',
+    SDKWORK_DATABASE_NAME: 'sdkwork_ai_dev',
+    SDKWORK_DATABASE_USERNAME: 'sdkwork_ai_dev',
+    SDKWORK_DATABASE_PASSWORD: 'sdkworkdev123',
+    SDKWORK_DATABASE_SSL_MODE: 'disable',
   });
 
   assert.equal(
-    resolved.SDKWORK_IAM_DATABASE_URL,
+    resolved.SDKWORK_DATABASE_URL,
     'postgresql://sdkwork_ai_dev:sdkworkdev123@127.0.0.1:5432/sdkwork_ai_dev?sslmode=disable',
   );
 });
 
-test('resolveClawDatabaseEnv mirrors claw URL into IAM and generic database env', () => {
+test('resolveClawDatabaseEnv preserves a canonical direct URL without aliases', () => {
   const resolved = resolveClawDatabaseEnv({
-    SDKWORK_CLAW_DATABASE_URL:
+    SDKWORK_DATABASE_URL:
       'postgresql://sdkwork_ai_dev:sdkworkdev123@127.0.0.1:5432/sdkwork_ai_dev?sslmode=disable',
   });
 
   assert.equal(
-    resolved.SDKWORK_IAM_DATABASE_URL,
-    'postgresql://sdkwork_ai_dev:sdkworkdev123@127.0.0.1:5432/sdkwork_ai_dev?sslmode=disable',
-  );
-  assert.equal(
     resolved.SDKWORK_DATABASE_URL,
     'postgresql://sdkwork_ai_dev:sdkworkdev123@127.0.0.1:5432/sdkwork_ai_dev?sslmode=disable',
+  );
+  assert.deepEqual(Object.keys(resolved), ['SDKWORK_DATABASE_URL']);
+});
+
+test('database helpers reject module-scoped aliases', () => {
+  const retiredKey = ['SDKWORK', 'CLAW', 'DATABASE', 'URL'].join('_');
+  assert.throws(
+    () => resolveClawDatabaseEnv({ [retiredKey]: 'postgresql://localhost/legacy' }),
+    /is retired; use SDKWORK_DATABASE_\*/u,
   );
 });

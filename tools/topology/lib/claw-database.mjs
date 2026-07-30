@@ -24,26 +24,33 @@ export function buildPostgresDatabaseUrl({
 }
 
 export function resolveClawDatabaseUrlFromEnv(env) {
-  const directUrl = normalizeText(env.SDKWORK_CLAW_DATABASE_URL);
+  const retiredKey = Object.keys(env).find(
+    (key) => /^SDKWORK_(?!DATABASE_)[A-Z0-9_]+_DATABASE_/u.test(key),
+  );
+  if (retiredKey) {
+    throw new Error(`${retiredKey} is retired; use SDKWORK_DATABASE_*`);
+  }
+
+  const directUrl = normalizeText(env.SDKWORK_DATABASE_URL);
   if (directUrl) {
     return directUrl;
   }
 
-  const engine = normalizeText(env.SDKWORK_CLAW_DATABASE_ENGINE)?.toLowerCase();
+  const engine = normalizeText(env.SDKWORK_DATABASE_ENGINE)?.toLowerCase();
   if (engine !== 'postgresql' && engine !== 'postgres') {
     return undefined;
   }
 
-  const host = normalizeText(env.SDKWORK_CLAW_DATABASE_HOST);
-  const database = normalizeText(env.SDKWORK_CLAW_DATABASE_NAME);
-  const username = normalizeText(env.SDKWORK_CLAW_DATABASE_USERNAME);
-  const password = env.SDKWORK_CLAW_DATABASE_PASSWORD;
+  const host = normalizeText(env.SDKWORK_DATABASE_HOST);
+  const database = normalizeText(env.SDKWORK_DATABASE_NAME);
+  const username = normalizeText(env.SDKWORK_DATABASE_USERNAME);
+  const password = env.SDKWORK_DATABASE_PASSWORD;
   if (!host || !database || !username || password === undefined) {
     return undefined;
   }
 
-  const port = normalizeText(env.SDKWORK_CLAW_DATABASE_PORT) || '5432';
-  const sslMode = normalizeText(env.SDKWORK_CLAW_DATABASE_SSL_MODE) || 'disable';
+  const port = normalizeText(env.SDKWORK_DATABASE_PORT) || '5432';
+  const sslMode = normalizeText(env.SDKWORK_DATABASE_SSL_MODE) || 'disable';
   return buildPostgresDatabaseUrl({
     host,
     port,
@@ -56,14 +63,12 @@ export function resolveClawDatabaseUrlFromEnv(env) {
 
 export function resolveClawDatabaseEnv(env) {
   const merged = { ...env };
-  const clawUrl = resolveClawDatabaseUrlFromEnv(merged);
-  if (!clawUrl) {
+  const databaseUrl = resolveClawDatabaseUrlFromEnv(merged);
+  if (!databaseUrl) {
     return merged;
   }
 
-  merged.SDKWORK_CLAW_DATABASE_URL = merged.SDKWORK_CLAW_DATABASE_URL || clawUrl;
-  merged.SDKWORK_IAM_DATABASE_URL = merged.SDKWORK_IAM_DATABASE_URL || clawUrl;
-  merged.SDKWORK_DATABASE_URL = merged.SDKWORK_DATABASE_URL || clawUrl;
+  merged.SDKWORK_DATABASE_URL = merged.SDKWORK_DATABASE_URL || databaseUrl;
   return merged;
 }
 
@@ -81,8 +86,8 @@ export const CANONICAL_DEV_CLAW_DATABASE = {
 
 export const CANONICAL_PRODUCTION_CLAW_DATABASE = {
   engine: 'postgresql',
-  name: 'sdkwork',
-  schema: 'public',
-  username: 'sdkwork',
+  name: 'sdkwork_ai_prod',
+  schema: 'sdkwork_ai_prod',
+  username: 'sdkwork_ai_prod',
   sslMode: 'require',
 };

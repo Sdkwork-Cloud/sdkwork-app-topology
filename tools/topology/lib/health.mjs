@@ -3,8 +3,12 @@ import net from 'node:net';
 import http from 'node:http';
 import https from 'node:https';
 
-export function isHttpHealthy(url, path = '/healthz', timeoutMs = 2000) {
+export function isHttpHealthy(url, path = '/healthz', timeoutMs = 2000, signal) {
   return new Promise((resolve) => {
+    if (signal?.aborted) {
+      resolve(false);
+      return;
+    }
     let parsed;
     try {
       parsed = new URL(path, url);
@@ -13,6 +17,13 @@ export function isHttpHealthy(url, path = '/healthz', timeoutMs = 2000) {
       return;
     }
     const transport = parsed.protocol === 'https:' ? https : http;
+    let settled = false;
+    const finish = (healthy) => {
+      if (settled) return;
+      settled = true;
+      signal?.removeEventListener('abort', abort);
+      resolve(healthy);
+    };
     const request = transport.get(
       {
         hostname: parsed.hostname,
@@ -22,14 +33,36 @@ export function isHttpHealthy(url, path = '/healthz', timeoutMs = 2000) {
       },
       (response) => {
         response.resume();
-        resolve(response.statusCode >= 200 && response.statusCode < 300);
+        finish(response.statusCode >= 200 && response.statusCode < 300);
       },
     );
-    request.on('error', () => resolve(false));
+    const abort = () => {
+      request.destroy();
+      finish(false);
+    };
+    signal?.addEventListener('abort', abort, { once: true });
+    request.on('error', () => finish(false));
     request.on('timeout', () => {
       request.destroy();
-      resolve(false);
+      finish(false);
     });
+  });
+}
+
+function waitForRetry(intervalMs, signal) {
+  if (signal?.aborted) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (completed) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      signal?.removeEventListener('abort', abort);
+      resolve(completed);
+    };
+    const timeout = setTimeout(() => finish(true), intervalMs);
+    const abort = () => finish(false);
+    signal?.addEventListener('abort', abort, { once: true });
   });
 }
 
@@ -54,12 +87,14 @@ export async function waitForHttpHealthy(url, options = {}) {
     timeoutMs = 2000,
     attempts = 90,
     intervalMs = 1000,
+    signal,
   } = options;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
-    if (await isHttpHealthy(url, path, timeoutMs)) {
+    if (signal?.aborted) return false;
+    if (await isHttpHealthy(url, path, timeoutMs, signal)) {
       return true;
     }
-    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    if (attempt + 1 < attempts && !await waitForRetry(intervalMs, signal)) return false;
   }
   return false;
 }

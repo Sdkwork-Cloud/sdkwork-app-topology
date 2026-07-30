@@ -97,6 +97,7 @@ function fixture() {
   fs.writeFileSync(specPath, JSON.stringify(spec));
   fs.writeFileSync(path.join(root, 'etc', 'topology', 'standalone.development.env'), [
     'SDKWORK_DEMO_PROFILE_ID=standalone.development',
+    'APP_BIND=127.0.0.1:8080',
     'APP_URL=http://127.0.0.1:8080',
     'WEB_BIND=0.0.0.0:4173',
     '',
@@ -155,7 +156,7 @@ test('resolves declared process and surface access endpoints into the runtime pl
       kind: 'api-reference',
       primary: false,
       url: 'http://127.0.0.1:8080/openapi.json',
-      binding: null,
+      binding: '127.0.0.1:8080',
     },
   ]);
   assert.equal(plan.primaryAccessEndpoint.id, 'application-ui');
@@ -173,6 +174,16 @@ test('resolves declared process and surface access endpoints into the runtime pl
       preserveCanonicalPaths: true,
     },
   ]);
+});
+
+test('server plans exclude browser deliveries and renderer-owned bindings', () => {
+  const { root, spec, specPath } = fixture();
+  const runtime = createTopologyRuntime(spec, root, specPath);
+  const plan = runtime.resolvePlan('standalone.development', 'server');
+
+  assert.deepEqual(plan.browserDeliveries, []);
+  assert.equal(plan.ownedBindings.some((binding) => binding.bindEnv === 'WEB_BIND'), false);
+  assert.equal(plan.ownedBindings.some((binding) => binding.bindEnv === 'APP_BIND'), true);
 });
 
 test('resolves gateway-static browser delivery to the application ingress origin', () => {

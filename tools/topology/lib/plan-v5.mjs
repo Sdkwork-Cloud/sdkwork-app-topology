@@ -60,6 +60,7 @@ function resolveBrowserDeliveries({
   processes,
   profileEnv,
   resolvedBaseUrls,
+  runtimeTarget,
   clientArchitecture,
 }) {
   const ids = new Set();
@@ -71,6 +72,9 @@ function resolveBrowserDeliveries({
       || delivery.clientArchitectures.some((value) => !CLIENT_ARCHITECTURES.has(value))) {
       throw new Error(`${profileId} browser delivery ${delivery.id} requires canonical clientArchitectures`);
     }
+  }
+  if (runtimeTarget !== 'browser') {
+    return [];
   }
   return declared
     .filter((delivery) => (
@@ -239,7 +243,7 @@ export function createResolvedRuntimePlan(
     runtimeTarget,
     clientArchitecture: clientArchitecture ?? null,
     localProcesses: processes,
-    ownedBindings: resolveOwnedBindings(runtime.spec, profile, profileEnv),
+    ownedBindings: resolveOwnedBindings(runtime.spec, { ...profile, processes }, profileEnv),
     managedResources: profile.managedResources ?? [],
     localGateway: gateways.length === 1
       ? { id: gateways[0].id, role: gateways[0].role, binary: gateways[0].binary ?? gateways[0].crate ?? null }
@@ -253,6 +257,7 @@ export function createResolvedRuntimePlan(
       processes,
       profileEnv,
       resolvedBaseUrls,
+      runtimeTarget,
       clientArchitecture,
     }),
     accessEndpoints,

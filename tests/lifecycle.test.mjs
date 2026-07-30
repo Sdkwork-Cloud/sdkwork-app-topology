@@ -17,6 +17,7 @@ import {
   main,
   passthroughArgs,
   removeDevelopmentSession,
+  runGenericDevelopment,
   resolveClientApplicationRoot,
   resolveSurfaceHealthOptions,
   sameModulePath,
@@ -83,6 +84,47 @@ test('generic development uses framework-resolved primary access endpoints', () 
     '[sdkwork-app]   Local: http://127.0.0.1:4173/',
     '[sdkwork-app]   Network: unavailable',
   ]);
+});
+
+test('generic development fails immediately when an early process exits before health', async () => {
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'sdkwork-app-early-exit-'));
+  const runtime = {
+    spec: {
+      surfaces: {
+        'application.public-ingress': {
+          healthAttempts: 300,
+          healthIntervalMs: 1000,
+          healthTimeoutMs: 2000,
+        },
+      },
+    },
+  };
+  const plan = {
+    activeProfile: 'standalone.development',
+    runtimeTarget: 'server',
+    localProcesses: [{
+      id: 'failing-gateway',
+      role: 'api-standalone-gateway',
+      command: process.execPath,
+      args: ['-e', 'process.exit(17)'],
+    }],
+    ownedBindings: [],
+    managedResources: [],
+    healthChecks: [{
+      surfaceId: 'application.public-ingress',
+      url: 'http://127.0.0.1:9',
+      required: true,
+    }],
+    accessEndpoints: [],
+  };
+
+  const startedAt = Date.now();
+  await assert.rejects(
+    () => runGenericDevelopment(repoRoot, runtime, plan, process.env, false),
+    /development process failing-gateway exited with code 17 before required health checks completed/u,
+  );
+  assert.ok(Date.now() - startedAt < 5000, 'early process failure must not wait for health timeout');
+  assert.equal(fs.existsSync(developmentSessionPath(repoRoot)), false);
 });
 
 test('rejects public scripts that bypass the lifecycle facade', () => {
