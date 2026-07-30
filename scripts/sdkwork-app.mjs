@@ -8,13 +8,17 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
+  canonicalRepositoryRoot,
   createTopologyRuntime,
   formatPrimaryAccessLines,
   loadTopologySpec,
   reconcileManagedResources,
+  removeRuntimeStateFile,
+  resolveRepositoryRuntimeStateDirectory,
   resolveOwnedBindings,
   stopOwnedBindings,
   waitForHttpHealthy,
+  writePrivateJsonAtomically,
 } from '../tools/topology/lib/index.mjs';
 import {
   loadPackageManifest,
@@ -31,7 +35,6 @@ const DEFAULT_WORKFLOW_CLI = path.join(WORKSPACE_ROOT, 'sdkwork-github-workflow'
 const DEFAULT_DEPLOY_CLI = path.join(WORKSPACE_ROOT, 'sdkwork-specs', 'tools', 'deployctl.mjs');
 const DEFAULT_APP_MANIFEST_CHECK_CLI = path.join(WORKSPACE_ROOT, 'sdkwork-specs', 'tools', 'check-app-manifest-standard.mjs');
 const DEFAULT_SOURCE_CONFIG_CHECK_CLI = path.join(WORKSPACE_ROOT, 'sdkwork-specs', 'tools', 'check-source-config-standard.mjs');
-const DEVELOPMENT_SESSION_RELATIVE_PATH = path.join('.runtime', 'sdkwork-app', 'development-session.json');
 const DEVELOPMENT_SESSION_HEARTBEAT_MS = 2000;
 const DEVELOPMENT_SESSION_STALE_MS = 15000;
 
@@ -69,23 +72,23 @@ async function runCommand(command, args, cwd, env = process.env) {
 }
 
 function developmentSessionPath(repoRoot) {
-  return path.join(repoRoot, DEVELOPMENT_SESSION_RELATIVE_PATH);
+  return path.join(resolveRepositoryRuntimeStateDirectory({
+    repoRoot,
+    owner: 'sdkwork-app',
+  }), 'development-session.json');
 }
 
 function writeDevelopmentSession(repoRoot, session) {
   const sessionPath = developmentSessionPath(repoRoot);
-  fs.mkdirSync(path.dirname(sessionPath), { recursive: true });
-  const temporaryPath = `${sessionPath}.${process.pid}.tmp`;
-  fs.writeFileSync(temporaryPath, `${JSON.stringify({
+  writePrivateJsonAtomically(sessionPath, {
     ...session,
     heartbeatAt: session.heartbeatAt ?? new Date().toISOString(),
-  }, null, 2)}\n`);
-  fs.renameSync(temporaryPath, sessionPath);
+  });
 }
 
 function removeDevelopmentSession(repoRoot) {
   const sessionPath = developmentSessionPath(repoRoot);
-  if (fs.existsSync(sessionPath)) fs.rmSync(sessionPath, { force: true });
+  removeRuntimeStateFile(sessionPath);
 }
 
 function readDevelopmentSession(repoRoot) {
@@ -112,8 +115,8 @@ function stopManagedDevelopmentSession(repoRoot, ownedBindings = []) {
   const session = readDevelopmentSession(repoRoot);
   if (!session) return false;
   const heartbeatAt = Date.parse(session.heartbeatAt ?? '');
-  const expectedRoot = path.resolve(repoRoot);
-  if (path.resolve(session.repoRoot ?? '') !== expectedRoot) {
+  const expectedRoot = canonicalRepositoryRoot(repoRoot);
+  if (canonicalRepositoryRoot(session.repoRoot ?? '') !== expectedRoot) {
     throw new Error('development session registry belongs to another repository');
   }
   if (!Number.isFinite(heartbeatAt) || Date.now() - heartbeatAt > DEVELOPMENT_SESSION_STALE_MS) {
@@ -313,7 +316,7 @@ async function runGenericDevelopment(repoRoot, runtime, plan, env, dryRun) {
   });
   const session = {
     schemaVersion: 1,
-    repoRoot: path.resolve(repoRoot),
+    repoRoot: canonicalRepositoryRoot(repoRoot),
     supervisorPid: process.pid,
     profileId: plan.activeProfile,
     runtimeTarget: plan.runtimeTarget,

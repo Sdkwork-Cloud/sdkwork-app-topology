@@ -251,7 +251,9 @@ test('writes a scoped development session and refuses stale sessions', () => {
     profileId: 'standalone.development',
     runtimeTarget: 'browser',
   });
-  assert.equal(path.dirname(developmentSessionPath(repoRoot)).endsWith(path.join('.runtime', 'sdkwork-app')), true);
+  const sessionPath = developmentSessionPath(repoRoot);
+  assert.equal(path.relative(repoRoot, sessionPath).startsWith('..'), true);
+  assert.equal(sessionPath.includes(path.join('sdkwork', 'sdkwork-app')), true);
   assert.equal(readDevelopmentSession(repoRoot).repoRoot, repoRoot);
   const session = readDevelopmentSession(repoRoot);
   writeDevelopmentSession(repoRoot, { ...session, heartbeatAt: new Date(Date.now() - 60000).toISOString() });

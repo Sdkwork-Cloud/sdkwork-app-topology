@@ -16,7 +16,8 @@
                     "./schema/v2":  "./specs/topology.schema.v2.json",
                     "./lifecycle":  "./tools/topology/lib/lifecycle.mjs",
                     "./access-endpoints":  "./tools/topology/lib/access-endpoints.mjs",
-                    "./network-access":  "./tools/topology/lib/network-access.mjs"
+                    "./network-access":  "./tools/topology/lib/network-access.mjs",
+                    "./runtime-state":  "./tools/topology/lib/runtime-state.mjs"
                 },
     "bin":  {
                 "sdkwork-topology":  "./scripts/sdkwork-topology.mjs",

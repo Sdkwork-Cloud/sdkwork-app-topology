@@ -2,7 +2,7 @@
 
 Status: active
 Owner: SDKWork maintainers
-Updated: 2026-07-21
+Updated: 2026-07-30
 Specs: APP_RUNTIME_TOPOLOGY_SPEC.md, ARCHITECTURE_DECISION_SPEC.md, DOCUMENTATION_SPEC.md
 
 ## Document Map
@@ -26,6 +26,10 @@ Architecture detail lives in the linked TECH shards below.
 ## 6. Security, Privacy, And Observability
 
 ## 7. Deployment And Runtime Topology
+
+Development process ownership uses `tools/topology/lib/runtime-state.mjs`. Session registries are
+stored outside source checkouts in a private OS user/runner runtime directory keyed by the canonical
+repository real-path hash; tool-native build caches remain owned by their build tools.
 
 ## 8. Architecture Decision Index
 

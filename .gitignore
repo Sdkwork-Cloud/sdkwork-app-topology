@@ -27,7 +27,7 @@ dist/
 **/.sdkwork/secrets/
 tools/.gateway-alignment-report.json
 
-# SDKWork local runtime state
+# Forbidden source-tree runtime state remains ignored as defense against accidental commits.
 .runtime/
 **/.runtime/
 **/node_modules/

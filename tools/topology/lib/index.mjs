@@ -61,6 +61,16 @@ export {
 } from './network-access.mjs';
 
 export {
+  canonicalRepositoryRoot,
+  ensurePrivateRuntimeStateDirectory,
+  removeRuntimeStateFile,
+  repositoryRuntimeStateKey,
+  resolveRepositoryRuntimeStateDirectory,
+  resolveSdkworkRuntimeBaseDirectory,
+  writePrivateJsonAtomically,
+} from './runtime-state.mjs';
+
+export {
   buildPostgresDatabaseUrl,
   resolveClawDatabaseEnv,
   resolveClawDatabaseUrlFromEnv,

@@ -100,8 +100,9 @@ pnpm exec sdkwork-app dev --root . --deployment-profile cloud
 pnpm exec sdkwork-app stop --root .
 ```
 
-Generic development writes a repository-scoped heartbeat registry under
-`.runtime/sdkwork-app/development-session.json`. `stop` terminates only the
+Generic development writes a repository-scoped heartbeat registry outside the source checkout at
+the private OS user/runner runtime path `sdkwork/sdkwork-app/<repository-hash>/development-session.json`.
+`stop` terminates only the
 fresh registered supervisor. On Windows it uses `taskkill /T` for the full
 owned process tree and falls back to the registered direct child PIDs plus the
 supervisor when the operating-system process-tree service is unavailable.
