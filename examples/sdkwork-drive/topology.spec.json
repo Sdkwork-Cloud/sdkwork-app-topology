@@ -2,6 +2,7 @@
   "schemaVersion": 5,
   "kind": "sdkwork.app.topology",
   "appId": "sdkwork-drive",
+  "applicationCode": "drive",
   "archetype": "application-http-gateway",
   "profileRoot": "examples/sdkwork-drive/etc/topology",
   "profilePattern": "{deploymentProfile}.{environment}.env",
@@ -25,7 +26,6 @@
     "profileId": "SDKWORK_DRIVE_PROFILE_ID",
     "clientDeploymentProfile": "VITE_SDKWORK_DRIVE_DEPLOYMENT_PROFILE"
   },
-  "database": { "appPrefix": "SDKWORK_DRIVE" },
   "surfaces": {
     "application.public-ingress": {
       "connectivityPlane": "application",

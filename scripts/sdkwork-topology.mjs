@@ -183,11 +183,12 @@ async function initApp(args) {
   }
 
   const appCode = appId.replace(/^sdkwork-/, '');
-  const envPrefix = `SDKWORK_${appCode.replace(/-/g, '_').toUpperCase()}`;
+  const applicationEnvPrefix = `SDKWORK_${appCode.replace(/-/g, '_').toUpperCase()}`;
   const spec = validateTopologySpec({
     schemaVersion: 5,
     kind: 'sdkwork.app.topology',
     appId,
+    applicationCode: appCode.replace(/-/g, '_'),
     archetype: 'application-http-gateway',
     profileRoot: 'etc/topology',
     profilePattern: '{deploymentProfile}.{environment}.env',
@@ -206,27 +207,24 @@ async function initApp(args) {
       'cloud.production': 'etc/topology/cloud.production.env',
     },
     envKeys: {
-      deploymentProfile: `${envPrefix}_DEPLOYMENT_PROFILE`,
-      environment: `${envPrefix}_ENVIRONMENT`,
-      profileId: `${envPrefix}_PROFILE_ID`,
-      clientDeploymentProfile: `VITE_${envPrefix}_DEPLOYMENT_PROFILE`,
-    },
-    database: {
-      appPrefix: envPrefix,
+      deploymentProfile: `${applicationEnvPrefix}_DEPLOYMENT_PROFILE`,
+      environment: `${applicationEnvPrefix}_ENVIRONMENT`,
+      profileId: `${applicationEnvPrefix}_PROFILE_ID`,
+      clientDeploymentProfile: `VITE_${applicationEnvPrefix}_DEPLOYMENT_PROFILE`,
     },
     surfaces: {
       'application.public-ingress': {
         connectivityPlane: 'application',
         protocols: ['http'],
-        bindEnv: `${envPrefix}_APPLICATION_PUBLIC_INGRESS_BIND`,
-        httpUrlEnv: `${envPrefix}_APPLICATION_PUBLIC_HTTP_URL`,
-        clientHttpEnv: `VITE_${envPrefix}_APPLICATION_PUBLIC_HTTP_URL`,
+        bindEnv: `${applicationEnvPrefix}_APPLICATION_PUBLIC_INGRESS_BIND`,
+        httpUrlEnv: `${applicationEnvPrefix}_APPLICATION_PUBLIC_HTTP_URL`,
+        clientHttpEnv: `VITE_${applicationEnvPrefix}_APPLICATION_PUBLIC_HTTP_URL`,
       },
       'platform.api-gateway': {
         connectivityPlane: 'platform',
         protocols: ['http'],
-        httpUrlEnv: `${envPrefix}_PLATFORM_API_GATEWAY_HTTP_URL`,
-        clientHttpEnv: `VITE_${envPrefix}_PLATFORM_API_GATEWAY_HTTP_URL`,
+        httpUrlEnv: `${applicationEnvPrefix}_PLATFORM_API_GATEWAY_HTTP_URL`,
+        clientHttpEnv: `VITE_${applicationEnvPrefix}_PLATFORM_API_GATEWAY_HTTP_URL`,
       },
     },
     components: {

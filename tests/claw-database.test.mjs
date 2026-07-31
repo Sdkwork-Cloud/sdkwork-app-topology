@@ -27,7 +27,7 @@ test('resolveClawDatabaseUrlFromEnv builds canonical development URL', () => {
 
 test('resolveIamDatabaseEnv uses only the canonical workspace profile', () => {
   const iam = createIamDatabaseHelpers({
-    database: { appPrefix: 'SDKWORK_KNOWLEDGEBASE' },
+    appId: 'sdkwork-knowledgebase',
   });
 
   const resolved = iam.resolveIamDatabaseEnv({

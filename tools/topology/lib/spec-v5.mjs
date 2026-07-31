@@ -38,6 +38,9 @@ export function validateTopologySpecV5(spec, specPath = 'topology.spec.json') {
   if (spec.schemaVersion !== 5) throw new Error(`${specPath} schemaVersion must be 5`);
   if (spec.kind !== 'sdkwork.app.topology') throw new Error(`${specPath} kind must be sdkwork.app.topology`);
   if (!/^sdkwork-[a-z0-9-]+$/u.test(spec.appId ?? '')) throw new Error(`${specPath} appId must use sdkwork-<application-code>`);
+  if (!/^[a-z0-9]+(?:_[a-z0-9]+)*$/u.test(spec.applicationCode ?? '')) {
+    throw new Error(`${specPath} applicationCode must be a lowercase kebab-free runtime directory code`);
+  }
   const profiles = spec.vocabulary?.deploymentProfile?.allowed;
   if (!Array.isArray(profiles) || profiles.length !== 2
     || profiles[0] !== 'standalone' || profiles[1] !== 'cloud') {
@@ -53,6 +56,9 @@ export function validateTopologySpecV5(spec, specPath = 'topology.spec.json') {
 
   if (spec.cloudIngress !== undefined) {
     throw new Error(`${specPath} cloudIngress is retired; declare remote surface URLs instead`);
+  }
+  if (spec.database !== undefined) {
+    throw new Error(`${specPath} database is retired; topology uses application envKeys and databases use SDKWORK_DATABASE_*`);
   }
 
   const profileFiles = spec.profileFiles;

@@ -14,6 +14,7 @@ function fixture() {
     schemaVersion: 5,
     kind: 'sdkwork.app.topology',
     appId: 'sdkwork-demo',
+    applicationCode: 'demo',
     archetype: 'application-http-gateway',
     vocabulary: {
       deploymentProfile: { allowed: ['standalone', 'cloud'] },
@@ -406,6 +407,15 @@ test('rejects platform gateway URLs from standalone profiles', () => {
   assert.throws(
     () => runtime.resolvePlan('standalone.development', 'server'),
     /standalone\.development forbids platform\.api-gateway URL key PLATFORM_URL/u,
+  );
+});
+
+test('rejects topology-owned database prefixes', () => {
+  const { spec, specPath } = fixture();
+  spec.database = { appPrefix: 'SDKWORK_DEMO' };
+  assert.throws(
+    () => validateTopologySpec(spec, specPath),
+    /database is retired; topology uses application envKeys and databases use SDKWORK_DATABASE_\*/u,
   );
 });
 

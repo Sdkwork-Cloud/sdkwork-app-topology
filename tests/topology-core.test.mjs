@@ -37,6 +37,9 @@ test('init-app emits a surface-oriented v5 topology without platform gateway own
 
   const spec = JSON.parse(fs.readFileSync(path.join(root, 'specs/topology.spec.json'), 'utf8'));
   assert.equal(spec.cloudIngress, undefined);
+  assert.equal(spec.database, undefined);
+  assert.equal(spec.applicationCode, 'demo');
+  assert.equal(spec.envKeys.deploymentProfile, 'SDKWORK_DEMO_DEPLOYMENT_PROFILE');
   assert.equal(spec.components.cloudGateway, undefined);
   assert.equal(spec.surfaces['platform.api-gateway'].owner, undefined);
   assert.equal(spec.surfaces['platform.api-gateway'].autostartEnv, undefined);
