@@ -2,6 +2,10 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { createProcessLaunchError } from './process-diagnostics.mjs';
+
+const PROCESS_INVOCATION = Symbol('sdkwork.lifecycle.process-invocation');
+
 export const PUBLIC_LIFECYCLE_COMMANDS = Object.freeze([
   'build', 'test', 'check', 'verify', 'clean', 'stop',
 ]);
@@ -73,14 +77,49 @@ export function platformLifecycleInvocation(command, args, options = {}) {
 }
 
 export function spawnLifecycleCommand(command, args, options = {}) {
-  const invocation = platformLifecycleInvocation(command, args, { env: options.env });
-  return spawn(invocation.command, invocation.args, {
+  const processInvocation = {
+    processId: options.processId,
+    processRole: options.processRole,
+    command,
+    args: [...args],
     cwd: options.cwd,
-    env: options.env,
-    stdio: options.stdio ?? 'inherit',
-    shell: false,
-    detached: options.detached ?? false,
-    windowsHide: true,
+    environment: options.env,
+  };
+  let invocation;
+  try {
+    invocation = platformLifecycleInvocation(command, args, { env: options.env });
+  } catch (error) {
+    throw createProcessLaunchError(error, processInvocation);
+  }
+  processInvocation.effectiveCommand = invocation.command;
+  processInvocation.effectiveArgs = [...invocation.args];
+  let child;
+  try {
+    child = spawn(invocation.command, invocation.args, {
+      cwd: options.cwd,
+      env: options.env,
+      stdio: options.stdio ?? 'inherit',
+      shell: false,
+      detached: options.detached ?? false,
+      windowsHide: true,
+    });
+  } catch (error) {
+    throw createProcessLaunchError(error, processInvocation);
+  }
+  child[PROCESS_INVOCATION] = processInvocation;
+  return child;
+}
+
+export function waitForLifecycleCommand(child) {
+  return new Promise((resolve, reject) => {
+    child.once('error', (error) => {
+      reject(createProcessLaunchError(error, child[PROCESS_INVOCATION] ?? {}));
+    });
+    child.once('exit', (code, signal) => resolve({
+      code: code ?? 1,
+      signal,
+      invocation: child[PROCESS_INVOCATION],
+    }));
   });
 }
 
@@ -89,12 +128,13 @@ export async function runPrivateLifecycleScript(repoRoot, packageManifest, scrip
   const child = spawnLifecycleCommand('pnpm', ['run', scriptName, ...(args.length > 0 ? ['--', ...args] : [])], {
     cwd: repoRoot,
     env: options.env ?? process.env,
+    processId: scriptName,
+    processRole: 'lifecycle-hook',
   });
-  return new Promise((resolve, reject) => {
-    child.once('error', reject);
-    child.once('exit', (code, signal) => resolve({ code: code ?? 1, signal }));
-  });
+  return waitForLifecycleCommand(child);
 }
+
+export { formatLifecycleError, LifecycleProcessError } from './process-diagnostics.mjs';
 
 export function loadPackageManifest(repoRoot) {
   const packagePath = path.join(repoRoot, 'package.json');

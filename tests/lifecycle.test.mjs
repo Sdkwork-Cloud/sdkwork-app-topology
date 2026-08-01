@@ -5,7 +5,14 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import test from 'node:test';
 
-import { platformLifecycleInvocation, resolveProcessInvocation } from '../tools/topology/lib/lifecycle.mjs';
+import {
+  formatLifecycleError,
+  LifecycleProcessError,
+  platformLifecycleInvocation,
+  resolveProcessInvocation,
+  spawnLifecycleCommand,
+  waitForLifecycleCommand,
+} from '../tools/topology/lib/lifecycle.mjs';
 
 import {
   buildClientEnvironment,
@@ -127,6 +134,33 @@ test('generic development fails immediately when an early process exits before h
   assert.equal(fs.existsSync(developmentSessionPath(repoRoot)), false);
 });
 
+test('generic development preserves a process launch failure during cleanup', async () => {
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'sdkwork-app-launch-error-'));
+  const runtime = { spec: { surfaces: {} } };
+  const missingCommand = `sdkwork-command-that-does-not-exist-${process.pid}`;
+  const plan = {
+    activeProfile: 'standalone.development',
+    runtimeTarget: 'server',
+    localProcesses: [{
+      id: 'missing-gateway',
+      role: 'api-standalone-gateway',
+      command: missingCommand,
+    }],
+    ownedBindings: [],
+    managedResources: [],
+    healthChecks: [],
+    accessEndpoints: [],
+  };
+
+  await assert.rejects(
+    () => runGenericDevelopment(repoRoot, runtime, plan, process.env, false),
+    (error) => error instanceof LifecycleProcessError
+      && error.code === 'ENOENT'
+      && error.details.processId === 'missing-gateway',
+  );
+  assert.equal(fs.existsSync(developmentSessionPath(repoRoot)), false);
+});
+
 test('rejects public scripts that bypass the lifecycle facade', () => {
   const issues = validateLifecyclePackage({ scripts: { dev: 'vite', build: 'cargo build' } });
   assert.ok(issues.some((issue) => issue.includes('dev must delegate')));
@@ -193,6 +227,62 @@ test('preserves dry-run while removing facade-only root selection', () => {
     ),
     ['--deployment-profile', 'cloud', '--dry-run'],
   );
+});
+
+test('preserves process context and the native cause when an executable cannot start', async () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'sdkwork-process-error-'));
+  const command = `sdkwork-command-that-does-not-exist-${process.pid}`;
+  const child = spawnLifecycleCommand(command, ['--version'], {
+    cwd,
+    env: { ...process.env, PATH: '' },
+    processId: 'application.public-ingress',
+    processRole: 'api-standalone-gateway',
+  });
+  let error;
+  try {
+    await waitForLifecycleCommand(child);
+    assert.fail('missing executable must reject');
+  } catch (caught) {
+    error = caught;
+  }
+  assert.equal(error instanceof LifecycleProcessError, true);
+  assert.equal(error.code, 'ENOENT');
+  assert.equal(error.cause.code, 'ENOENT');
+  assert.equal(error.details.processId, 'application.public-ingress');
+  assert.equal(error.details.cwd, cwd);
+  assert.equal(error.details.resolvedExecutable, undefined);
+  assert.match(error.details.diagnosis, /was not found on PATH/u);
+});
+
+test('formats complete lifecycle process context, cause properties, and stacks', () => {
+  const cause = Object.assign(new Error('spawn cargo ENOENT'), {
+    code: 'ENOENT',
+    errno: -4058,
+    syscall: 'spawn cargo',
+    path: 'cargo',
+    spawnargs: ['run', '-p', 'sdkwork-demo'],
+  });
+  const error = new LifecycleProcessError('failed to start development process gateway', {
+    processId: 'gateway',
+    processRole: 'api-standalone-gateway',
+    command: 'cargo',
+    args: ['run', '-p', 'sdkwork-demo'],
+    effectiveCommand: 'cargo',
+    effectiveArgs: ['run', '-p', 'sdkwork-demo'],
+    cwd: 'E:\\workspace\\sdkwork-demo',
+    resolvedExecutable: undefined,
+    path: 'C:\\Windows\\System32',
+    diagnosis: 'executable "cargo" was not found on PATH',
+  }, cause);
+  const output = formatLifecycleError(error, { summary: 'startup failed' });
+  assert.match(output, /\[sdkwork-app\] startup failed/u);
+  assert.match(output, /process: gateway/u);
+  assert.match(output, /command: cargo run -p sdkwork-demo/u);
+  assert.match(output, /diagnosis: executable "cargo" was not found on PATH/u);
+  assert.match(output, /2\. Error: spawn cargo ENOENT/u);
+  assert.match(output, /code: ENOENT/u);
+  assert.match(output, /spawnargs: \["run","-p","sdkwork-demo"\]/u);
+  assert.match(output, /stack:/u);
 });
 
 test('resolves independent client application roots explicitly', () => {

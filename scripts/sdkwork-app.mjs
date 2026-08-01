@@ -23,9 +23,11 @@ import {
 import {
   loadPackageManifest,
   privateLifecycleScript,
+  formatLifecycleError,
   resolveProcessInvocation,
   runPrivateLifecycleScript,
   spawnLifecycleCommand,
+  waitForLifecycleCommand,
   validateLifecyclePackage,
 } from '../tools/topology/lib/lifecycle.mjs';
 
@@ -59,15 +61,8 @@ function passthroughArgs(args, excluded) {
   return out;
 }
 
-function waitForChild(child) {
-  return new Promise((resolve, reject) => {
-    child.once('error', reject);
-    child.once('exit', (code, signal) => resolve({ code: code ?? 1, signal }));
-  });
-}
-
 async function runCommand(command, args, cwd, env = process.env) {
-  const result = await waitForChild(spawnLifecycleCommand(command, args, { cwd, env }));
+  const result = await waitForLifecycleCommand(spawnLifecycleCommand(command, args, { cwd, env }));
   if (result.code !== 0) throw new Error(`${command} exited with code ${result.code}`);
 }
 
@@ -302,16 +297,18 @@ async function runGenericDevelopment(repoRoot, runtime, plan, env, dryRun) {
       cwd: path.resolve(repoRoot, entry.cwd ?? '.'),
       env: childEnv,
       detached: process.platform !== 'win32',
+      processId: entry.id,
+      processRole: entry.role,
     });
     children.push({
       child,
       entry,
-      result: waitForChild(child),
+      result: waitForLifecycleCommand(child),
     });
     refreshSession();
   };
   const terminate = () => children.forEach(({ child }) => {
-    if (child.killed) return;
+    if (child.killed || !Number.isSafeInteger(child.pid) || child.pid <= 0) return;
     if (process.platform === 'win32') {
       child.kill('SIGTERM');
       return;
@@ -623,7 +620,9 @@ function sameModulePath(left, right) {
 const invokedPath = process.argv[1] ? process.argv[1] : null;
 if (invokedPath && sameModulePath(invokedPath, fileURLToPath(import.meta.url))) {
   main().catch((error) => {
-    console.error(`[sdkwork-app] ${error.message}`);
+    const command = process.argv[2];
+    const summary = command === 'dev' ? 'startup failed' : `command ${command ?? '<unknown>'} failed`;
+    console.error(formatLifecycleError(error, { summary }));
     process.exitCode = 1;
   });
 }

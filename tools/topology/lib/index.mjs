@@ -23,8 +23,14 @@ export {
   resolveProcessInvocation,
   runPrivateLifecycleScript,
   spawnLifecycleCommand,
+  waitForLifecycleCommand,
   validateLifecyclePackage,
 } from './lifecycle.mjs';
+
+export {
+  formatLifecycleError,
+  LifecycleProcessError,
+} from './process-diagnostics.mjs';
 
 export { isTcpPortReachable, DEFAULT_POSTGRES_REACHABILITY_TIMEOUT_MS } from './postgres.mjs';
 
