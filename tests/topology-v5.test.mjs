@@ -173,8 +173,157 @@ test('resolves declared process and surface access endpoints into the runtime pl
       apiTargetOrigin: 'http://127.0.0.1:8080',
       clientProcessId: 'web-client',
       preserveCanonicalPaths: true,
+      renderers: [],
+      adaptive: false,
+      deviceOverrides: [],
+      tabletArchitecture: 'pc-web',
     },
   ]);
+});
+
+test('resolves adaptive browser delivery renderers into the runtime plan', () => {
+  const { root, spec, specPath } = fixture();
+  const profile = spec.orchestration.profiles['standalone.development'];
+  const delivery = profile.browserDeliveries[0];
+  const client = profile.processes[1];
+  client.clientArchitectures = ['pc-web', 'h5'];
+  delivery.clientArchitectures = ['pc-web', 'h5'];
+  delivery.renderers = {
+    'pc-web': {
+      applicationRoot: 'apps/sdkwork-demo-pc',
+      command: 'node',
+      args: ['scripts/dev/run-vite.mjs', '--host', '{host}', '--port', '{port}', '--strictPort'],
+      defaultPort: 4176,
+      portEnv: 'DEMO_PC_RENDERER_PORT',
+    },
+    h5: {
+      applicationRoot: 'apps/sdkwork-demo-h5',
+      script: '_sdkwork:dev-server',
+      defaultPort: 4178,
+    },
+  };
+  validateTopologySpec(spec, specPath);
+  const runtime = createTopologyRuntime(spec, root, specPath);
+  const plan = runtime.resolvePlan('standalone.development', 'browser', undefined, {
+    profileEnv: {
+      ...runtime.loadProfile('standalone.development'),
+      DEMO_PC_RENDERER_PORT: '5199',
+    },
+  });
+  const [resolved] = plan.browserDeliveries;
+  assert.equal(resolved.adaptive, true);
+  assert.equal(resolved.browserVisibleOrigin, 'http://127.0.0.1:4173');
+  assert.deepEqual(resolved.renderers.map((renderer) => ({
+    architecture: renderer.architecture,
+    label: renderer.label,
+    port: renderer.port,
+    host: renderer.host,
+    defaultPort: renderer.defaultPort,
+    portEnv: renderer.portEnv,
+    hostEnv: renderer.hostEnv,
+    command: renderer.invocation.command,
+    args: renderer.invocation.args,
+  })), [
+    {
+      architecture: 'pc-web',
+      label: 'sdkwork-demo-pc',
+      port: 5199,
+      host: '127.0.0.1',
+      defaultPort: 4176,
+      portEnv: 'DEMO_PC_RENDERER_PORT',
+      hostEnv: null,
+      command: 'node',
+      args: ['scripts/dev/run-vite.mjs', '--host', '{host}', '--port', '{port}', '--strictPort'],
+    },
+    {
+      architecture: 'h5',
+      label: 'sdkwork-demo-h5',
+      port: 4178,
+      host: '127.0.0.1',
+      defaultPort: 4178,
+      portEnv: null,
+      hostEnv: null,
+      command: 'pnpm',
+      args: ['run', '_sdkwork:dev-server'],
+    },
+  ]);
+});
+
+test('rejects renderer declarations that drift from the delivery architectures', () => {
+  const { spec, specPath } = fixture();
+  const delivery = spec.orchestration.profiles['standalone.development'].browserDeliveries[0];
+  delivery.renderers = {
+    flutter: { applicationRoot: 'apps/sdkwork-demo-flutter', command: 'node', args: [] },
+  };
+  assert.throws(
+    () => validateTopologySpec(spec, specPath),
+    /renderer flutter must be one of the delivery clientArchitectures/u,
+  );
+});
+
+test('rejects renderer applicationRoot escapes, invalid ports, and missing invocations', () => {
+  const { spec, specPath } = fixture();
+  const delivery = spec.orchestration.profiles['standalone.development'].browserDeliveries[0];
+  delivery.renderers = {
+    'pc-web': { applicationRoot: '../sdkwork-other', command: 'node', args: [] },
+  };
+  assert.throws(
+    () => validateTopologySpec(spec, specPath),
+    /renderer pc-web applicationRoot must be a safe relative path/u,
+  );
+  delivery.renderers = {
+    'pc-web': { applicationRoot: 'apps/sdkwork-demo-pc', command: 'node', args: [], defaultPort: 99_999 },
+  };
+  assert.throws(
+    () => validateTopologySpec(spec, specPath),
+    /renderer pc-web defaultPort must be between 1 and 65535/u,
+  );
+  delivery.renderers = {
+    'pc-web': { applicationRoot: 'apps/sdkwork-demo-pc', command: 'node', args: [], portEnv: 'lower-case' },
+  };
+  assert.throws(
+    () => validateTopologySpec(spec, specPath),
+    /renderer pc-web portEnv must be an environment key/u,
+  );
+  delivery.renderers = {
+    'pc-web': { applicationRoot: 'apps/sdkwork-demo-pc' },
+  };
+  assert.throws(
+    () => validateTopologySpec(spec, specPath),
+    /renderer pc-web requires a command\/args or script invocation/u,
+  );
+});
+
+test('rejects renderers on gateway-static browser deliveries', () => {
+  const { spec, specPath } = fixture();
+  spec.profileFiles['standalone.production'] = 'etc/topology/standalone.production.env';
+  spec.orchestration.profiles['standalone.production'] = {
+    processes: [
+      { id: 'standalone-gateway', role: 'api-standalone-gateway' },
+    ],
+    browserDeliveries: [
+      {
+        id: 'web-client',
+        applicationRoot: 'apps/sdkwork-demo-pc',
+        clientArchitectures: ['pc-web'],
+        originMode: 'same-origin',
+        deliveryMode: 'gateway-static',
+        apiSurfaceId: 'application.public-ingress',
+        hostProcessId: 'standalone-gateway',
+        buildOutput: 'apps/sdkwork-demo-pc/dist',
+        runtimeRootEnv: 'SDKWORK_DEMO_PC_STATIC_ROOT',
+        mountPath: '/',
+        spaFallback: '/index.html',
+        renderers: {
+          'pc-web': { applicationRoot: 'apps/sdkwork-demo-pc', command: 'node', args: [] },
+        },
+      },
+    ],
+  };
+  assert.throws(
+    () => validateTopologySpec(spec, specPath),
+    /renderers\/deviceOverrides\/tabletArchitecture are dev-server-proxy only/u,
+  );
 });
 
 test('server plans exclude browser deliveries and renderer-owned bindings', () => {

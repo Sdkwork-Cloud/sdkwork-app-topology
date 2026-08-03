@@ -171,7 +171,56 @@ export function validateTopologySpecV5(spec, specPath = 'topology.spec.json') {
           || !delivery.clientArchitectures.every((architecture) => client.clientArchitectures.includes(architecture))) {
           throw new Error(`${label} clientArchitectures must match its client process`);
         }
+        const rendererArchitectures = new Set();
+        for (const [architecture, renderer] of Object.entries(delivery.renderers ?? {})) {
+          const rendererLabel = `${label} renderer ${architecture}`;
+          if (!delivery.clientArchitectures.includes(architecture)) {
+            throw new Error(`${rendererLabel} must be one of the delivery clientArchitectures`);
+          }
+          if (rendererArchitectures.has(architecture)) {
+            throw new Error(`${rendererLabel} is duplicated`);
+          }
+          rendererArchitectures.add(architecture);
+          if (!normalizeText(renderer.applicationRoot)
+            || /^[/\\]|(?:^|[/\\])\.\.(?:[/\\]|$)/u.test(renderer.applicationRoot)) {
+            throw new Error(`${rendererLabel} applicationRoot must be a safe relative path`);
+          }
+          if (!renderer.command && !renderer.script && !renderer.crate
+            && !(renderer.package && renderer.script)) {
+            throw new Error(`${rendererLabel} requires a command/args or script invocation`);
+          }
+          if (renderer.defaultPort !== undefined
+            && (!Number.isInteger(renderer.defaultPort) || renderer.defaultPort < 1
+              || renderer.defaultPort > 65535)) {
+            throw new Error(`${rendererLabel} defaultPort must be between 1 and 65535`);
+          }
+          for (const key of ['portEnv', 'hostEnv']) {
+            if (renderer[key] !== undefined && !/^[A-Z][A-Z0-9_]+$/u.test(renderer[key])) {
+              throw new Error(`${rendererLabel} ${key} must be an environment key`);
+            }
+          }
+          if (renderer.env !== undefined
+            && (!renderer.env || typeof renderer.env !== 'object' || Array.isArray(renderer.env))) {
+            throw new Error(`${rendererLabel} env must be a string map`);
+          }
+        }
+        for (const rule of delivery.deviceOverrides ?? []) {
+          if (!normalizeText(rule.pattern)) {
+            throw new Error(`${label} device override requires a pattern`);
+          }
+          if (!['mobile', 'desktop'].includes(rule.deviceClass)) {
+            throw new Error(`${label} device override deviceClass must be mobile or desktop`);
+          }
+        }
+        if (delivery.tabletArchitecture !== undefined
+          && !['pc-web', 'h5'].includes(delivery.tabletArchitecture)) {
+          throw new Error(`${label} tabletArchitecture must be pc-web or h5`);
+        }
       } else if (delivery.deliveryMode === 'gateway-static') {
+        if (delivery.renderers !== undefined || delivery.deviceOverrides !== undefined
+          || delivery.tabletArchitecture !== undefined) {
+          throw new Error(`${label} renderers/deviceOverrides/tabletArchitecture are dev-server-proxy only`);
+        }
         const host = processesById.get(delivery.hostProcessId);
         if (!host || host.role !== 'api-standalone-gateway') {
           throw new Error(`${label} requires a gateway hostProcessId`);

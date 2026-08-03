@@ -170,7 +170,41 @@
                       "buildOutput": { "type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9._/-]+$" },
                       "runtimeRootEnv": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]+$" },
                       "mountPath": { "const": "/" },
-                      "spaFallback": { "const": "/index.html" }
+                      "spaFallback": { "const": "/index.html" },
+                      "renderers": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": ["applicationRoot"],
+                          "properties": {
+                            "applicationRoot": { "type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9._/-]+$" },
+                            "command": { "type": "string", "minLength": 1 },
+                            "args": { "type": "array", "items": { "type": "string" } },
+                            "script": { "type": "string", "minLength": 1 },
+                            "package": { "type": "string", "minLength": 1 },
+                            "crate": { "type": "string", "minLength": 1 },
+                            "defaultPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+                            "portEnv": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]+$" },
+                            "hostEnv": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]+$" },
+                            "userAgent": { "type": "string", "minLength": 1 },
+                            "env": { "type": "object", "additionalProperties": { "type": "string" } }
+                          }
+                        }
+                      },
+                      "deviceOverrides": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": ["pattern", "deviceClass"],
+                          "properties": {
+                            "pattern": { "type": "string", "minLength": 1 },
+                            "deviceClass": { "enum": ["mobile", "desktop"] }
+                          }
+                        }
+                      },
+                      "tabletArchitecture": { "enum": ["pc-web", "h5"] }
                     },
                     "allOf": [
                       {
@@ -196,7 +230,10 @@
                           "not": {
                             "anyOf": [
                               { "required": ["clientProcessId"] },
-                              { "required": ["preserveCanonicalPaths"] }
+                              { "required": ["preserveCanonicalPaths"] },
+                              { "required": ["renderers"] },
+                              { "required": ["deviceOverrides"] },
+                              { "required": ["tabletArchitecture"] }
                             ]
                           }
                         }

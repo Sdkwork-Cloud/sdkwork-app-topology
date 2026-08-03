@@ -89,6 +89,47 @@ The bundled `specs/topology.schema.v5.json` is a synchronized distribution copy
 of `../sdkwork-specs/schemas/sdkwork.app.topology.schema.v5.json`. V1, v2, and
 v4 readers remain available only for migration.
 
+## Adaptive Browser Delivery
+
+A `dev-server-proxy` browser delivery that declares `renderers` becomes an
+**adaptive PC/H5 dev ingress** owned by the framework (`APP_RUNTIME_TOPOLOGY_SPEC.md`
+§8.2): `sdkwork-app dev` starts every declared renderer, waits for readiness,
+and serves one same-origin ingress that selects the renderer by device class
+(desktop → `pc-web`, mobile → `h5`) with `Vary: user-agent`, keeps canonical
+API paths and WebSocket upgrades on `application.public-ingress`, and falls
+back to the next available renderer when the preferred one is down.
+
+```json
+{
+  "browserDeliveries": [{
+    "id": "app-adaptive-web",
+    "applicationRoot": "apps/sdkwork-app-pc",
+    "clientArchitectures": ["pc-web", "h5"],
+    "originMode": "same-origin",
+    "deliveryMode": "dev-server-proxy",
+    "clientProcessId": "app-browser",
+    "apiSurfaceId": "application.public-ingress",
+    "preserveCanonicalPaths": true,
+    "renderers": {
+      "pc-web": { "applicationRoot": "apps/sdkwork-app-pc",
+                  "command": "node", "args": ["scripts/dev/run-vite.mjs", "--port", "{port}"],
+                  "defaultPort": 4176 },
+      "h5": { "applicationRoot": "apps/sdkwork-app-h5",
+              "command": "node", "args": ["scripts/dev/run-vite.mjs", "--port", "{port}"],
+              "defaultPort": 4178 }
+    }
+  }]
+}
+```
+
+The delivery's `clientProcessId` keeps `bindEnv` and `applicationRoot`; it is
+not launched as a separate process, and the root `_sdkwork:client:browser:*`
+hooks are retired once the adaptive delivery is declared. Renderer `env`
+values and invocation `args` support the `{host}`, `{port}`, `{httpOrigin}`,
+and `{wsOrigin}` tokens. Device detection, fallback order, and collapse modes
+mirror `SDKWORK_DEPLOY_SPEC.md` §8; `sdkwork-app doctor` enforces the
+declaration through `check-adaptive-web-standard.mjs`.
+
 ## Commands
 
 ```bash
@@ -106,8 +147,8 @@ the private OS user/runner runtime path `sdkwork/sdkwork-app/<repository-hash>/d
 fresh registered supervisor. On Windows it uses `taskkill /T` for the full
 owned process tree and falls back to the registered direct child PIDs plus the
 supervisor when the operating-system process-tree service is unavailable.
-`doctor` composes lifecycle facade, app-manifest, source-config, topology v5,
-workflow, and deploy-manifest validation.
+`doctor` composes lifecycle facade, app-manifest, source-config, adaptive-web,
+topology v5, workflow, and deploy-manifest validation.
 
 ## Network Access Output
 

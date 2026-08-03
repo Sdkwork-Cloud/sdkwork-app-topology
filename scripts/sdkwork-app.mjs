@@ -30,6 +30,7 @@ import {
   waitForLifecycleCommand,
   validateLifecyclePackage,
 } from '../tools/topology/lib/lifecycle.mjs';
+import { startAdaptiveWebDelivery } from '../tools/topology/lib/adaptive-web.mjs';
 
 const FRAMEWORK_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WORKSPACE_ROOT = path.resolve(FRAMEWORK_ROOT, '..');
@@ -37,6 +38,7 @@ const DEFAULT_WORKFLOW_CLI = path.join(WORKSPACE_ROOT, 'sdkwork-github-workflow'
 const DEFAULT_DEPLOY_CLI = path.join(WORKSPACE_ROOT, 'sdkwork-specs', 'tools', 'deployctl.mjs');
 const DEFAULT_APP_MANIFEST_CHECK_CLI = path.join(WORKSPACE_ROOT, 'sdkwork-specs', 'tools', 'check-app-manifest-standard.mjs');
 const DEFAULT_SOURCE_CONFIG_CHECK_CLI = path.join(WORKSPACE_ROOT, 'sdkwork-specs', 'tools', 'check-source-config-standard.mjs');
+const DEFAULT_ADAPTIVE_WEB_CHECK_CLI = path.join(WORKSPACE_ROOT, 'sdkwork-specs', 'tools', 'check-adaptive-web-standard.mjs');
 const DEVELOPMENT_SESSION_HEARTBEAT_MS = 2000;
 const DEVELOPMENT_SESSION_STALE_MS = 15000;
 
@@ -274,9 +276,23 @@ async function buildClientEnvironment(repoRoot, entry, env, plan) {
 }
 
 async function runGenericDevelopment(repoRoot, runtime, plan, env, dryRun) {
-  const early = plan.localProcesses.filter((entry) => entry.role !== 'client');
-  const clients = plan.localProcesses.filter((entry) => entry.role === 'client');
-  const resolved = plan.localProcesses.map((entry) => ({ entry, invocation: resolveProcessInvocation(entry) }));
+  const adaptiveDeliveries = (plan.browserDeliveries ?? []).filter((delivery) => (
+    delivery.deliveryMode === 'dev-server-proxy'
+    && Array.isArray(delivery.renderers)
+    && delivery.renderers.length > 0
+  ));
+  const coveredClientProcessIds = new Set(
+    adaptiveDeliveries.map((delivery) => delivery.clientProcessId),
+  );
+  const early = plan.localProcesses.filter((entry) => (
+    entry.role !== 'client' && !coveredClientProcessIds.has(entry.id)
+  ));
+  const clients = plan.localProcesses.filter((entry) => (
+    entry.role === 'client' && !coveredClientProcessIds.has(entry.id)
+  ));
+  const resolved = plan.localProcesses
+    .filter((entry) => !coveredClientProcessIds.has(entry.id))
+    .map((entry) => ({ entry, invocation: resolveProcessInvocation(entry) }));
   const missing = resolved.filter((item) => !item.invocation).map((item) => item.entry.id);
   if (missing.length > 0) throw new Error(`process commands are unresolved: ${missing.join(', ')}`);
   if (dryRun) {
@@ -288,6 +304,7 @@ async function runGenericDevelopment(repoRoot, runtime, plan, env, dryRun) {
     clientEnvironments.set(entry, await buildClientEnvironment(repoRoot, entry, env, plan));
   }
   const children = [];
+  const adaptiveHandles = [];
   const launch = (entry) => {
     const invocation = resolveProcessInvocation(entry);
     const childEnv = entry.role === 'client'
@@ -307,18 +324,23 @@ async function runGenericDevelopment(repoRoot, runtime, plan, env, dryRun) {
     });
     refreshSession();
   };
-  const terminate = () => children.forEach(({ child }) => {
-    if (child.killed || !Number.isSafeInteger(child.pid) || child.pid <= 0) return;
-    if (process.platform === 'win32') {
-      child.kill('SIGTERM');
-      return;
+  const terminate = () => {
+    for (const handle of adaptiveHandles) {
+      handle.close();
     }
-    try {
-      process.kill(-child.pid, 'SIGTERM');
-    } catch (error) {
-      if (error.code !== 'ESRCH') throw error;
-    }
-  });
+    children.forEach(({ child }) => {
+      if (child.killed || !Number.isSafeInteger(child.pid) || child.pid <= 0) return;
+      if (process.platform === 'win32') {
+        child.kill('SIGTERM');
+        return;
+      }
+      try {
+        process.kill(-child.pid, 'SIGTERM');
+      } catch (error) {
+        if (error.code !== 'ESRCH') throw error;
+      }
+    });
+  };
   const session = {
     schemaVersion: 1,
     repoRoot: canonicalRepositoryRoot(repoRoot),
@@ -330,9 +352,12 @@ async function runGenericDevelopment(repoRoot, runtime, plan, env, dryRun) {
   };
   const refreshSession = () => writeDevelopmentSession(repoRoot, {
     ...session,
-    childPids: children
-      .map(({ child }) => child.pid)
-      .filter((pid) => Number.isSafeInteger(pid) && pid > 0),
+    childPids: [
+      ...children.map(({ child }) => child.pid),
+      ...adaptiveHandles.flatMap((handle) => (
+        [...handle.renderers.values()].map((renderer) => renderer.child.pid)
+      )),
+    ].filter((pid) => Number.isSafeInteger(pid) && pid > 0),
   });
   let resolveSignal;
   const signalReceived = new Promise((resolve) => { resolveSignal = resolve; });
@@ -370,10 +395,25 @@ async function runGenericDevelopment(repoRoot, runtime, plan, env, dryRun) {
       );
     }
     clients.forEach(launch);
+    for (const delivery of adaptiveDeliveries) {
+      adaptiveHandles.push(await startAdaptiveWebDelivery({
+        runtime,
+        plan,
+        delivery,
+        env,
+        report: {
+          stdout: (message) => process.stdout.write(`[sdkwork-app] ${message}\n`),
+          stderr: (message) => process.stderr.write(`[sdkwork-app] ${message}\n`),
+        },
+      }));
+    }
+    refreshSession();
     for (const line of developmentAccessLines(plan)) {
       console.log(line);
     }
-    if (children.length === 0) throw new Error('development plan has no local processes; declare a client process or private _sdkwork:dev hook');
+    if (children.length === 0 && adaptiveHandles.length === 0) {
+      throw new Error('development plan has no local processes; declare a client process, an adaptive browser delivery, or a private _sdkwork:dev hook');
+    }
     const first = await Promise.race([
       ...children.map(({ result }) => result),
       signalReceived.then(() => ({ code: 0, signal: 'SIGTERM' })),
@@ -567,6 +607,7 @@ async function main(argv = process.argv.slice(2)) {
     if (issues.length > 0) throw new Error(`lifecycle contract failed: ${issues.join('; ')}`);
     await runStandardCheck(repoRoot, 'SDKWORK_APP_MANIFEST_CHECK_CLI', DEFAULT_APP_MANIFEST_CHECK_CLI);
     await runStandardCheck(repoRoot, 'SDKWORK_SOURCE_CONFIG_CHECK_CLI', DEFAULT_SOURCE_CONFIG_CHECK_CLI);
+    await runStandardCheck(repoRoot, 'SDKWORK_ADAPTIVE_WEB_CHECK_CLI', DEFAULT_ADAPTIVE_WEB_CHECK_CLI);
     loadRuntime(repoRoot);
     if (fs.existsSync(path.join(repoRoot, 'sdkwork.workflow.json'))) {
       await runWorkflow(repoRoot, 'validate', []);

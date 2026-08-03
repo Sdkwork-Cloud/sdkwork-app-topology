@@ -55,6 +55,21 @@ export {
 } from './access-endpoints.mjs';
 
 export {
+  RENDERER_READY_TIMEOUT_MS,
+  WEB_DEVICE_CLASSES,
+  createAdaptiveWebServer,
+  detectWebDeviceClass,
+  matchCanonicalApiPath,
+  preferredWebArchitecture,
+  resolveAvailableWebClient,
+  spawnWebRenderer,
+  startAdaptiveWebDelivery,
+  waitForWebRenderer,
+  webClientFallbackOrder,
+  webSocketUrlFromHttpUrl,
+} from './adaptive-web.mjs';
+
+export {
   formatNetworkAccessLines,
   formatNetworkUrlHost,
   formatResolvedNetworkAccessLines,

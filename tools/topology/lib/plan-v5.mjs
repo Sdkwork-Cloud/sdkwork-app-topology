@@ -2,6 +2,8 @@ import path from 'node:path';
 
 import { resolveDeclaredAccessEndpoints } from './access-endpoints.mjs';
 import { resolveOwnedBindings } from './development-ownership.mjs';
+import { normalizeText } from './env-file.mjs';
+import { resolveProcessInvocation } from './lifecycle.mjs';
 
 const FORBIDDEN_CLOUD_DEVELOPMENT_ROLES = Object.freeze([
   'api-standalone-gateway',
@@ -11,6 +13,61 @@ const CLIENT_ARCHITECTURES = new Set([
   'pc-web', 'h5', 'capacitor', 'flutter', 'tauri', 'electron',
   'android-native', 'ios-native', 'harmony-native', 'mini-program',
 ]);
+
+const DEFAULT_RENDERER_HOST = '127.0.0.1';
+
+const DEFAULT_RENDERER_PROBE_USER_AGENTS = Object.freeze({
+  'pc-web': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/136.0',
+  h5: 'Mozilla/5.0 (Linux; Android 15; Mobile) AppleWebKit/537.36 Chrome/136.0',
+});
+
+function resolveRendererPort(value, label) {
+  const normalized = normalizeText(value);
+  if (!normalized || !/^\d+$/u.test(normalized)) {
+    throw new Error(`${label} requires a TCP port (portEnv or defaultPort)`);
+  }
+  const port = Number.parseInt(normalized, 10);
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+    throw new Error(`${label} must be between 1 and 65535`);
+  }
+  return port;
+}
+
+function resolveDeliveryRenderers({ profileId, delivery, profileEnv }) {
+  return Object.entries(delivery.renderers ?? {}).map(([architecture, renderer]) => {
+    const label = `${profileId} browser delivery ${delivery.id} renderer ${architecture}`;
+    const defaultPort = renderer.defaultPort === undefined ? undefined : resolveRendererPort(
+      renderer.defaultPort,
+      `${label} defaultPort`,
+    );
+    const portEnv = normalizeText(renderer.portEnv);
+    const port = resolveRendererPort(
+      portEnv ? (profileEnv[portEnv] ?? defaultPort) : defaultPort,
+      label,
+    );
+    const hostEnv = normalizeText(renderer.hostEnv);
+    const host = hostEnv ? (normalizeText(profileEnv[hostEnv]) ?? DEFAULT_RENDERER_HOST) : DEFAULT_RENDERER_HOST;
+    const invocation = resolveProcessInvocation(renderer);
+    if (!invocation) {
+      throw new Error(`${label} requires a command/args or script invocation`);
+    }
+    return {
+      architecture,
+      applicationRoot: renderer.applicationRoot,
+      invocation,
+      port,
+      host,
+      defaultPort: defaultPort ?? null,
+      portEnv: portEnv ?? null,
+      hostEnv: hostEnv ?? null,
+      userAgent: normalizeText(renderer.userAgent)
+        ?? DEFAULT_RENDERER_PROBE_USER_AGENTS[architecture]
+        ?? DEFAULT_RENDERER_PROBE_USER_AGENTS['pc-web'],
+      env: renderer.env ?? {},
+      label: path.basename(renderer.applicationRoot),
+    };
+  });
+}
 
 function remoteUrl(value) {
   try {
@@ -133,6 +190,10 @@ function resolveBrowserDeliveries({
           apiTargetOrigin,
           clientProcessId: delivery.clientProcessId,
           preserveCanonicalPaths: true,
+          renderers: resolveDeliveryRenderers({ profileId, delivery, profileEnv }),
+          adaptive: Object.keys(delivery.renderers ?? {}).length > 0,
+          deviceOverrides: delivery.deviceOverrides ?? [],
+          tabletArchitecture: delivery.tabletArchitecture ?? 'pc-web',
         };
       }
 
