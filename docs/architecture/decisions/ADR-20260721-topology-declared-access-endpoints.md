@@ -49,7 +49,7 @@ product-specific diagnostics.
 - Canonical and bundled topology schemas remain byte-structure equivalent.
 - Framework tests cover references, selection, environment overrides, primary
   uniqueness, wildcard projection, and formatting.
-- Claw Router topology and startup-output tests prove that UI resolves to 3901
+- Cloud Router topology and startup-output tests prove that UI resolves to 3901
   while API reference resolves to 3900 `/openapi.json`.
 
 ## Supersedes / Superseded By

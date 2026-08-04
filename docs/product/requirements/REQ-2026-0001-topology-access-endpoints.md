@@ -44,7 +44,7 @@ ingress root as a browser UI URL.
 - More than one selected primary endpoint fails before publishing access URLs.
 - Framework formatting publishes deterministic local and LAN URLs from the
   resolved primary endpoint.
-- Claw Router declares its Portal renderer as primary and its public-ingress
+- Cloud Router declares its Portal renderer as primary and its public-ingress
   OpenAPI document as an API-reference endpoint, with no local port inference.
 
 ## Non-Functional Requirements
@@ -58,11 +58,11 @@ ingress root as a browser UI URL.
 ## Trace
 
 - Specs: `APP_RUNTIME_TOPOLOGY_SPEC.md`, `TEST_SPEC.md`.
-- Components: `@sdkwork/app-topology`, `sdkwork-clawrouter`.
+- Components: `@sdkwork/app-topology`, `sdkwork-cloudrouter`.
 - Decision: `ADR-20260721-topology-declared-access-endpoints.md`.
 
 ## Verification
 
 - `pnpm test` in `sdkwork-app-topology`.
-- `pnpm exec sdkwork-topology validate --root .` in `sdkwork-clawrouter`.
-- Claw Router network-access and topology contract tests.
+- `pnpm exec sdkwork-topology validate --root .` in `sdkwork-cloudrouter`.
+- Cloud Router network-access and topology contract tests.

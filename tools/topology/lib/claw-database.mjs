@@ -23,7 +23,7 @@ export function buildPostgresDatabaseUrl({
   return `postgresql://${authority}/${encodePostgresPath(database)}${query ? `?${query}` : ''}`;
 }
 
-export function resolveClawDatabaseUrlFromEnv(env) {
+export function resolveCloudDatabaseUrlFromEnv(env) {
   const retiredKey = Object.keys(env).find(
     (key) => /^SDKWORK_(?!DATABASE_)[A-Z0-9_]+_DATABASE_/u.test(key),
   );
@@ -61,9 +61,9 @@ export function resolveClawDatabaseUrlFromEnv(env) {
   });
 }
 
-export function resolveClawDatabaseEnv(env) {
+export function resolveCloudDatabaseEnv(env) {
   const merged = { ...env };
-  const databaseUrl = resolveClawDatabaseUrlFromEnv(merged);
+  const databaseUrl = resolveCloudDatabaseUrlFromEnv(merged);
   if (!databaseUrl) {
     return merged;
   }
@@ -72,7 +72,7 @@ export function resolveClawDatabaseEnv(env) {
   return merged;
 }
 
-export const CANONICAL_DEV_CLAW_DATABASE = {
+export const CANONICAL_DEV_CLOUD_DATABASE = {
   engine: 'postgresql',
   host: '127.0.0.1',
   port: '5432',
@@ -84,7 +84,7 @@ export const CANONICAL_DEV_CLAW_DATABASE = {
   maxConnections: '10',
 };
 
-export const CANONICAL_PRODUCTION_CLAW_DATABASE = {
+export const CANONICAL_PRODUCTION_CLOUD_DATABASE = {
   engine: 'postgresql',
   name: 'sdkwork_ai_prod',
   schema: 'sdkwork_ai_prod',

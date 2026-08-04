@@ -2,21 +2,21 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-  CANONICAL_DEV_CLAW_DATABASE,
-  resolveClawDatabaseEnv,
-  resolveClawDatabaseUrlFromEnv,
-} from '../tools/topology/lib/claw-database.mjs';
+  CANONICAL_DEV_CLOUD_DATABASE,
+  resolveCloudDatabaseEnv,
+  resolveCloudDatabaseUrlFromEnv,
+} from '../tools/topology/lib/cloud-database.mjs';
 import { createIamDatabaseHelpers } from '../tools/topology/lib/iam-database.mjs';
 
-test('resolveClawDatabaseUrlFromEnv builds canonical development URL', () => {
-  const url = resolveClawDatabaseUrlFromEnv({
+test('resolveCloudDatabaseUrlFromEnv builds canonical development URL', () => {
+  const url = resolveCloudDatabaseUrlFromEnv({
     SDKWORK_DATABASE_ENGINE: 'postgresql',
-    SDKWORK_DATABASE_HOST: CANONICAL_DEV_CLAW_DATABASE.host,
-    SDKWORK_DATABASE_PORT: CANONICAL_DEV_CLAW_DATABASE.port,
-    SDKWORK_DATABASE_NAME: CANONICAL_DEV_CLAW_DATABASE.name,
-    SDKWORK_DATABASE_USERNAME: CANONICAL_DEV_CLAW_DATABASE.username,
-    SDKWORK_DATABASE_PASSWORD: CANONICAL_DEV_CLAW_DATABASE.password,
-    SDKWORK_DATABASE_SSL_MODE: CANONICAL_DEV_CLAW_DATABASE.sslMode,
+    SDKWORK_DATABASE_HOST: CANONICAL_DEV_CLOUD_DATABASE.host,
+    SDKWORK_DATABASE_PORT: CANONICAL_DEV_CLOUD_DATABASE.port,
+    SDKWORK_DATABASE_NAME: CANONICAL_DEV_CLOUD_DATABASE.name,
+    SDKWORK_DATABASE_USERNAME: CANONICAL_DEV_CLOUD_DATABASE.username,
+    SDKWORK_DATABASE_PASSWORD: CANONICAL_DEV_CLOUD_DATABASE.password,
+    SDKWORK_DATABASE_SSL_MODE: CANONICAL_DEV_CLOUD_DATABASE.sslMode,
   });
 
   assert.equal(
@@ -46,8 +46,8 @@ test('resolveIamDatabaseEnv uses only the canonical workspace profile', () => {
   );
 });
 
-test('resolveClawDatabaseEnv preserves a canonical direct URL without aliases', () => {
-  const resolved = resolveClawDatabaseEnv({
+test('resolveCloudDatabaseEnv preserves a canonical direct URL without aliases', () => {
+  const resolved = resolveCloudDatabaseEnv({
     SDKWORK_DATABASE_URL:
       'postgresql://sdkwork_ai_dev:sdkworkdev123@127.0.0.1:5432/sdkwork_ai_dev?sslmode=disable',
   });
@@ -60,9 +60,9 @@ test('resolveClawDatabaseEnv preserves a canonical direct URL without aliases', 
 });
 
 test('database helpers reject module-scoped aliases', () => {
-  const retiredKey = ['SDKWORK', 'CLAW', 'DATABASE', 'URL'].join('_');
+  const retiredKey = ['SDKWORK', 'CLOUD', 'DATABASE', 'URL'].join('_');
   assert.throws(
-    () => resolveClawDatabaseEnv({ [retiredKey]: 'postgresql://localhost/legacy' }),
+    () => resolveCloudDatabaseEnv({ [retiredKey]: 'postgresql://localhost/legacy' }),
     /is retired; use SDKWORK_DATABASE_\*/u,
   );
 });

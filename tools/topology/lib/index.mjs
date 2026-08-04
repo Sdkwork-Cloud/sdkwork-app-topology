@@ -93,8 +93,8 @@ export {
 
 export {
   buildPostgresDatabaseUrl,
-  resolveClawDatabaseEnv,
-  resolveClawDatabaseUrlFromEnv,
-  CANONICAL_DEV_CLAW_DATABASE,
-  CANONICAL_PRODUCTION_CLAW_DATABASE,
-} from './claw-database.mjs';
+  resolveCloudDatabaseEnv,
+  resolveCloudDatabaseUrlFromEnv,
+  CANONICAL_DEV_CLOUD_DATABASE,
+  CANONICAL_PRODUCTION_CLOUD_DATABASE,
+} from './cloud-database.mjs';

@@ -1,13 +1,13 @@
 import { ensurePostgresDevEnvFile, loadEnvFile, normalizeText } from './env-file.mjs';
 import { isTcpPortReachable } from './postgres.mjs';
 import {
-  resolveClawDatabaseEnv,
-  resolveClawDatabaseUrlFromEnv,
-} from './claw-database.mjs';
+  resolveCloudDatabaseEnv,
+  resolveCloudDatabaseUrlFromEnv,
+} from './cloud-database.mjs';
 
 export function createIamDatabaseHelpers(spec) {
   function resolveIamDatabaseEnv(env) {
-    return resolveClawDatabaseEnv({ ...env });
+    return resolveCloudDatabaseEnv({ ...env });
   }
 
   function describeIamDatabaseTarget(env) {
@@ -56,7 +56,7 @@ export function createIamDatabaseHelpers(spec) {
 
   async function assertPostgresReachableForIam(env, options = {}) {
     const url = normalizeText(env.SDKWORK_DATABASE_URL)
-      || resolveClawDatabaseUrlFromEnv(env);
+      || resolveCloudDatabaseUrlFromEnv(env);
     if (!url) {
       throw new Error(
         options.missingDatabaseMessage
