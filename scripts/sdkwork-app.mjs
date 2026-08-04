@@ -42,6 +42,41 @@ const DEFAULT_ADAPTIVE_WEB_CHECK_CLI = path.join(WORKSPACE_ROOT, 'sdkwork-specs'
 const DEVELOPMENT_SESSION_HEARTBEAT_MS = 2000;
 const DEVELOPMENT_SESSION_STALE_MS = 15000;
 
+/**
+ * Region deployment dimension (REGION_SPEC.md). The region is orthogonal to
+ * the deployment profile and environment: it is injected through
+ * `SDKWORK_<APPLICATION_CODE>_REGION_CODE` (private process variable) and
+ * never becomes a profile-id segment. The default seed locale resolves from
+ * the application region registry when present, otherwise zh-CN.
+ */
+function resolveRegionEnv(repoRoot, runtime, args, env = process.env) {
+  const applicationCode = String(
+    runtime.spec?.applicationCode ?? runtime.spec?.appId ?? 'APP',
+  ).toUpperCase();
+  const regionCode = option(args, '--region')
+    ?? env[`SDKWORK_${applicationCode}_REGION_CODE`]
+    ?? 'global';
+  const seedLocale = env.SDKWORK_DATABASE_SEED_LOCALE
+    ?? resolveRegionDefaultLocale(repoRoot, regionCode);
+  return {
+    [`SDKWORK_${applicationCode}_REGION_CODE`]: regionCode,
+    SDKWORK_DATABASE_SEED_LOCALE: seedLocale,
+  };
+}
+
+function resolveRegionDefaultLocale(repoRoot, regionCode) {
+  try {
+    const registry = JSON.parse(
+      fs.readFileSync(path.join(repoRoot, 'etc', 'region.registry.json'), 'utf8'),
+    );
+    const region = (registry.regions ?? []).find((item) => item.regionCode === regionCode);
+    if (region?.defaultLocale) return region.defaultLocale;
+  } catch {
+    // no region registry in this application; fall back to zh-CN
+  }
+  return 'zh-CN';
+}
+
 function option(args, name, fallback = undefined) {
   const index = args.indexOf(name);
   return index >= 0 ? args[index + 1] : fallback;
@@ -469,7 +504,8 @@ async function runDevelopment(repoRoot, packageManifest, args) {
   const runtime = loadRuntime(repoRoot);
   const plan = runtime.resolvePlan(`${deploymentProfile}.${environment}`, runtimeTarget, clientArchitecture);
   if (plan.forbiddenProcesses.length > 0) throw new Error(`forbidden local processes: ${plan.forbiddenProcesses.join(', ')}`);
-  const env = runtime.applyProfileEnv(plan.activeProfile, [process.env, runtime.loadProfile(plan.activeProfile)]);
+  const regionEnv = resolveRegionEnv(repoRoot, runtime, args);
+  const env = runtime.applyProfileEnv(plan.activeProfile, [process.env, runtime.loadProfile(plan.activeProfile), regionEnv]);
   console.log(`[sdkwork-app] ${plan.appId} ${plan.activeProfile} runtimeTarget=${runtimeTarget} clientArchitecture=${plan.clientArchitecture ?? 'none'}`);
   const privateScript = privateLifecycleScript('dev', deploymentProfile);
   if (packageManifest.scripts?.[privateScript] && !dryRun) {
@@ -637,7 +673,10 @@ async function main(argv = process.argv.slice(2)) {
   }
   if (['build', 'test', 'check', 'verify', 'clean'].includes(command)) {
     const script = privateLifecycleScript(command);
-    const result = await runPrivateLifecycleScript(repoRoot, packageManifest, script, forwarded);
+    const regionEnv = resolveRegionEnv(repoRoot, loadRuntime(repoRoot), forwarded);
+    const result = await runPrivateLifecycleScript(repoRoot, packageManifest, script, forwarded, {
+      env: { ...process.env, ...regionEnv },
+    });
     if (!result) throw new Error(`missing private lifecycle hook ${script}`);
     if (result.code !== 0) throw new Error(`${script} exited with code ${result.code}`);
     return;
