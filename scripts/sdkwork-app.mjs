@@ -458,6 +458,12 @@ async function runGenericDevelopment(repoRoot, runtime, plan, env, dryRun) {
     clearInterval(heartbeat);
     try {
       stopOwnedBindings(plan.ownedBindings);
+    } catch (error) {
+      // Cleanup must not mask the primary startup failure: report the
+      // occupied bindings as a warning and keep the original error chain.
+      process.stderr.write(
+        `[sdkwork-app] warning: owned TCP bindings could not be reclaimed during cleanup: ${error instanceof Error ? error.message : String(error)}\n`,
+      );
     } finally {
       terminate();
       try {

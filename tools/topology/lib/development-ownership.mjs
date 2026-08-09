@@ -1,6 +1,5 @@
 import { spawnSync } from 'node:child_process';
 import process from 'node:process';
-
 export function parseTcpBinding(value, label = 'TCP binding') {
   const match = String(value ?? '').trim().match(/^(?:\[([^\]]+)\]|([^:]+)):(\d+)$/u);
   const port = Number(match?.[3]);
@@ -52,28 +51,62 @@ function wait(milliseconds) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
 }
 
+const STOP_OWNED_BINDINGS_ATTEMPTS = 8;
+const STOP_OWNED_BINDINGS_RETRY_WAIT_MS = 150;
+
+function defaultForceTerminate(pid) {
+  const result = spawnSync('taskkill.exe', ['/F', '/PID', String(pid)], {
+    encoding: 'utf8',
+    stdio: 'ignore',
+    windowsHide: true,
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  // A non-zero exit usually means the process already exited (taskkill
+  // reports "not found"); the verify loop decides whether the port is free.
+}
+
 export function stopOwnedBindings(bindings, {
   platform = process.platform,
   listListeningPids = windowsListeningPids,
   terminate = (pid) => process.kill(pid, 'SIGTERM'),
+  forceTerminate = defaultForceTerminate,
+  maxAttempts = STOP_OWNED_BINDINGS_ATTEMPTS,
+  waitMs = STOP_OWNED_BINDINGS_RETRY_WAIT_MS,
 } = {}) {
   if (bindings.length === 0 || platform !== 'win32') return new Set();
   const stopped = new Set();
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    const pids = listListeningPids(bindings);
-    if (pids.size === 0) break;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const pids = [...listListeningPids(bindings)].filter((pid) => pid !== process.pid);
+    if (pids.length === 0) break;
     for (const pid of pids) {
-      if (pid === process.pid) continue;
       try {
         terminate(pid);
         stopped.add(pid);
       } catch (error) {
-        if (error.code !== 'ESRCH') throw error;
+        // EPERM (elevated target) defers to the force-terminate phase.
+        if (error.code !== 'ESRCH' && error.code !== 'EPERM') throw error;
       }
     }
-    wait(50);
+    wait(waitMs);
   }
-  const remaining = listListeningPids(bindings);
+  let remaining = listListeningPids(bindings);
+  if (remaining.size > 0) {
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      for (const pid of [...remaining].filter((pid) => pid !== process.pid)) {
+        try {
+          forceTerminate(pid);
+          stopped.add(pid);
+        } catch (error) {
+          if (error.code !== 'ESRCH') throw error;
+        }
+      }
+      wait(waitMs);
+      remaining = listListeningPids(bindings);
+      if (remaining.size === 0) break;
+    }
+  }
   if (remaining.size > 0) {
     throw new Error(`owned TCP bindings remain occupied by PID(s): ${[...remaining].join(', ')}`);
   }
