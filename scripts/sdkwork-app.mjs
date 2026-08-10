@@ -143,6 +143,23 @@ function processIsAlive(pid) {
   }
 }
 
+function stopRecordedDevelopmentChildren(session) {
+  const pids = [...new Set(
+    (Array.isArray(session.childPids) ? session.childPids : [])
+      .filter((pid) => Number.isSafeInteger(pid) && pid > 0),
+  )];
+  for (const pid of pids) {
+    if (!processIsAlive(pid)) continue;
+    try {
+      process.kill(pid, 'SIGTERM');
+    } catch (error) {
+      if (error.code !== 'ESRCH') {
+        throw new Error(`failed to stop managed development process ${pid}: ${error.message}`);
+      }
+    }
+  }
+}
+
 function stopManagedDevelopmentSession(repoRoot, ownedBindings = []) {
   const session = readDevelopmentSession(repoRoot);
   if (!session) return false;
@@ -152,10 +169,14 @@ function stopManagedDevelopmentSession(repoRoot, ownedBindings = []) {
     throw new Error('development session registry belongs to another repository');
   }
   if (!Number.isFinite(heartbeatAt) || Date.now() - heartbeatAt > DEVELOPMENT_SESSION_STALE_MS) {
+    // The supervisor is gone (or hung); its recorded children may still be
+    // alive and holding owned ports. Reclaim them before dropping the session.
+    stopRecordedDevelopmentChildren(session);
     removeDevelopmentSession(repoRoot);
     return false;
   }
   if (!processIsAlive(session.supervisorPid)) {
+    stopRecordedDevelopmentChildren(session);
     removeDevelopmentSession(repoRoot);
     return false;
   }

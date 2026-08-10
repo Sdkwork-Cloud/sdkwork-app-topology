@@ -189,6 +189,18 @@ function viteDependencyCachePath(requestUrl) {
   }
 }
 
+function rendererOwningViteCache(viteCachePath, renderers) {
+  if (!viteCachePath) {
+    return undefined;
+  }
+  for (const renderer of renderers.values()) {
+    if (viteCachePath.startsWith(`/node_modules/.vite/${renderer.label}/`)) {
+      return renderer;
+    }
+  }
+  return undefined;
+}
+
 function writeStaleViteDependencyResponse(response, deliveryLabel, architecture) {
   response.writeHead(410, {
     'cache-control': 'no-store',
@@ -219,27 +231,44 @@ function proxyRendererRequest(request, response, renderers, options) {
     availableClients: availableRendererClients(renderers),
     clientArchitectures: [...renderers.keys()],
   });
+  const viteCachePath = viteDependencyCachePath(request.url);
+  const cacheOwnerRenderer = viteCachePath
+    ? rendererOwningViteCache(viteCachePath, renderers)
+    : undefined;
+  if (viteCachePath && !cacheOwnerRenderer) {
+    // A Vite cache URL that no renderer owns (unknown/stale cache label):
+    // the browser holds a module graph from a renderer that no longer
+    // matches, so require a reload instead of serving another renderer's
+    // cache prefix.
+    writeStaleViteDependencyResponse(response, deliveryLabel, preferred);
+    return;
+  }
   if (!preferred) {
     writeProxyFailure(response, `No ${deliveryLabel} browser renderer is available.`);
     return;
   }
   const preferredRenderer = renderers.get(preferred);
-  const viteCachePath = viteDependencyCachePath(request.url);
-  const expectedViteCachePrefix = `/node_modules/.vite/${preferredRenderer.label}/`;
-  if (viteCachePath && !viteCachePath.startsWith(expectedViteCachePrefix)) {
-    writeStaleViteDependencyResponse(response, deliveryLabel, preferred);
-    return;
-  }
-  const fallback = [...webClientFallbackOrder(deviceClass, [...renderers.keys()])]
-    .find((architecture) => architecture !== preferred
-      && renderers.get(architecture)?.ready);
+  // A Vite dependency cache URL belongs to the renderer whose cache label it
+  // carries. Route it there regardless of device class: the browser module
+  // graph may legitimately reference another renderer's cache (e.g. after a
+  // renderer restart or while the device-preferred renderer is unavailable),
+  // and hard-failing with 410 would leave the loaded page broken until a
+  // manual reload.
+  const targetRenderer = cacheOwnerRenderer ?? preferredRenderer;
+  // Cross-renderer fallback only applies to ordinary page requests; a cache
+  // URL must never be served by a renderer that does not own that cache.
+  const fallback = !cacheOwnerRenderer
+    ? [...webClientFallbackOrder(deviceClass, [...renderers.keys()])]
+      .find((architecture) => architecture !== preferred
+        && renderers.get(architecture)?.ready)
+    : undefined;
   const proxyOptions = { varyUserAgent: true };
-  proxyHttp(request, response, preferredRenderer.target, (firstError) => {
+  proxyHttp(request, response, targetRenderer.target, (firstError) => {
     const fallbackRenderer = fallback ? renderers.get(fallback) : undefined;
     if (!fallbackRenderer?.ready || !['GET', 'HEAD'].includes(request.method ?? 'GET')) {
       writeProxyFailure(
         response,
-        `${deliveryLabel} ${preferred} renderer is unavailable: ${firstError.message}`,
+        `${deliveryLabel} ${targetRenderer.architecture} renderer is unavailable: ${firstError.message}`,
       );
       return;
     }

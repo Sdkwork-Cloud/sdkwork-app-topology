@@ -9,6 +9,28 @@ export function parseTcpBinding(value, label = 'TCP binding') {
   return { host: match[1] ?? match[2], port, value: String(value).trim() };
 }
 
+const DEFAULT_RENDERER_HOST = '127.0.0.1';
+
+function rendererTcpBinding(renderer, profileEnv, label) {
+  const rawPort = renderer.portEnv
+    ? (profileEnv[renderer.portEnv] ?? renderer.defaultPort)
+    : renderer.defaultPort;
+  const port = Number(rawPort);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error(`${label} renderer requires a TCP port (portEnv or defaultPort)`);
+  }
+  const rawHost = renderer.hostEnv
+    ? (profileEnv[renderer.hostEnv] ?? DEFAULT_RENDERER_HOST)
+    : DEFAULT_RENDERER_HOST;
+  const host = String(rawHost).trim();
+  const formattedHost = host.includes(':') ? `[${host}]` : host;
+  return {
+    host: host.replace(/^\[|\]$/gu, ''),
+    port,
+    value: `${formattedHost}:${port}`,
+  };
+}
+
 export function resolveOwnedBindings(spec, profile, profileEnv) {
   const declarations = [];
   for (const [surfaceId, surface] of Object.entries(spec.surfaces ?? {})) {
@@ -21,9 +43,22 @@ export function resolveOwnedBindings(spec, profile, profileEnv) {
       declarations.push({ id: processEntry.id, bindEnv: processEntry.bindEnv });
     }
   }
+  // Adaptive browser delivery renderers own their dev-server ports; stop must
+  // reclaim them by listener PID even when the supervisor session is stale.
+  for (const delivery of profile.browserDeliveries ?? []) {
+    for (const [architecture, renderer] of Object.entries(delivery.renderers ?? {})) {
+      declarations.push({
+        id: `${delivery.id}:${architecture}`,
+        bindEnv: renderer.portEnv ?? null,
+        renderer,
+      });
+    }
+  }
   const seen = new Set();
   return declarations.flatMap((entry) => {
-    const binding = parseTcpBinding(profileEnv[entry.bindEnv], entry.bindEnv);
+    const binding = entry.renderer
+      ? rendererTcpBinding(entry.renderer, profileEnv, entry.id)
+      : parseTcpBinding(profileEnv[entry.bindEnv], entry.bindEnv);
     if (seen.has(binding.port)) return [];
     seen.add(binding.port);
     return [{ ...entry, ...binding }];

@@ -481,6 +481,60 @@ test('stops only the live supervisor recorded by the scoped development session'
   }
 });
 
+test('reclaims recorded children when the supervisor is no longer alive', async () => {
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'sdkwork-app-orphan-reclaim-'));
+  const dead = spawn(process.execPath, ['-e', ''], { stdio: 'ignore', windowsHide: true });
+  await new Promise((resolve) => dead.once('exit', resolve));
+  const orphan = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+    stdio: 'ignore',
+    windowsHide: true,
+  });
+  await new Promise((resolve, reject) => {
+    orphan.once('spawn', resolve);
+    orphan.once('error', reject);
+  });
+  try {
+    writeDevelopmentSession(repoRoot, {
+      schemaVersion: 1,
+      repoRoot,
+      supervisorPid: dead.pid,
+      childPids: [orphan.pid],
+      profileId: 'standalone.development',
+      runtimeTarget: 'browser',
+    });
+    assert.equal(stopManagedDevelopmentSession(repoRoot), false);
+    assert.equal(fs.existsSync(developmentSessionPath(repoRoot)), false);
+    await new Promise((resolve, reject) => {
+      const deadline = Date.now() + 5000;
+      const check = () => {
+        try {
+          process.kill(orphan.pid, 0);
+        } catch (error) {
+          if (error.code === 'ESRCH') {
+            resolve();
+            return;
+          }
+          reject(error);
+          return;
+        }
+        if (Date.now() >= deadline) {
+          reject(new Error('orphaned development child was not reclaimed'));
+          return;
+        }
+        setTimeout(check, 50);
+      };
+      check();
+    });
+  } finally {
+    try {
+      process.kill(orphan.pid, 'SIGTERM');
+    } catch {
+      // already reclaimed
+    }
+    removeDevelopmentSession(repoRoot);
+  }
+});
+
 test('doctor validates manifest, source config, topology, workflow, and deploy contracts as one application fixture', async () => {
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'sdkwork-app-doctor-'));
   const repoRoot = path.join(workspace, 'sdkwork-drive');

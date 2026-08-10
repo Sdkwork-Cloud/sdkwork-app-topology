@@ -28,6 +28,47 @@ test('resolves surface and process bindings as one deduplicated ownership set', 
   assert.deepEqual(parseTcpBinding('[::1]:5190'), { host: '::1', port: 5190, value: '[::1]:5190' });
 });
 
+test('includes adaptive browser delivery renderer ports in owned bindings', () => {
+  const bindings = resolveOwnedBindings({
+    surfaces: { ingress: { bindEnv: 'APP_BIND' } },
+  }, {
+    processes: [{ id: 'client', bindEnv: 'CLIENT_BIND' }],
+    browserDeliveries: [
+      {
+        id: 'im-adaptive-web',
+        renderers: {
+          'pc-web': { portEnv: 'PC_DEV_PORT', defaultPort: 4176 },
+          h5: { defaultPort: 4178 },
+        },
+      },
+    ],
+  }, {
+    APP_BIND: '127.0.0.1:18092',
+    CLIENT_BIND: '0.0.0.0:5190',
+    PC_DEV_PORT: '4176',
+  });
+
+  assert.deepEqual(bindings.map(({ id, port }) => ({ id, port })), [
+    { id: 'ingress', port: 18092 },
+    { id: 'client', port: 5190 },
+    { id: 'im-adaptive-web:pc-web', port: 4176 },
+    { id: 'im-adaptive-web:h5', port: 4178 },
+  ]);
+});
+
+test('deduplicates renderer ports that collide with declared bindings', () => {
+  const bindings = resolveOwnedBindings({ surfaces: {} }, {
+    processes: [{ id: 'client', bindEnv: 'CLIENT_BIND' }],
+    browserDeliveries: [
+      { id: 'delivery', renderers: { h5: { defaultPort: 5190 } } },
+    ],
+  }, { CLIENT_BIND: '0.0.0.0:5190' });
+
+  assert.deepEqual(bindings.map(({ id, port }) => ({ id, port })), [
+    { id: 'client', port: 5190 },
+  ]);
+});
+
 test('Windows listener discovery selects only declared ports', () => {
   const pids = windowsListeningPids([{ port: 5190 }, { port: 18092 }], {
     run: () => ({ status: 0, stdout: [

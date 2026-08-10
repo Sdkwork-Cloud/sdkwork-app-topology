@@ -62,6 +62,45 @@
         }
       }
     },
+    "cloudPublicHosts": {
+      "type": "object",
+      "description": "Cloud public host registry per APP_RUNTIME_TOPOLOGY_NAMING.md section 9. Top-level httpHost/httpHosts is the production default; environments overrides apply per profile environment. httpHosts holds multi-base-domain host sets; httpHost must be an element of httpHosts when both are declared.",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "httpHost": { "type": "string", "pattern": "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\\.(?:com|net|org|dev|io|cn|example|internal)$" },
+          "httpHosts": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "type": "string", "pattern": "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\\.(?:com|net|org|dev|io|cn|example|internal)$" }
+          },
+          "websocketHost": { "type": "string", "pattern": "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\\.(?:com|net|org|dev|io|cn|example|internal)$" },
+          "note": { "type": "string" },
+          "environments": {
+            "type": "object",
+            "patternProperties": {
+              "^(development|test|staging|production)$": {
+                "type": "object",
+                "properties": {
+                  "httpHost": { "type": "string", "pattern": "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\\.(?:com|net|org|dev|io|cn|example|internal)$" },
+                  "httpHosts": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": { "type": "string", "pattern": "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\\.(?:com|net|org|dev|io|cn|example|internal)$" }
+                  },
+                  "websocketHost": { "type": "string", "pattern": "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\\.(?:com|net|org|dev|io|cn|example|internal)$" }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    },
     "orchestration": {
       "type": "object",
       "required": ["profiles"],

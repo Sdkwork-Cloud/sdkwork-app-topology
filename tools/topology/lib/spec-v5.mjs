@@ -147,8 +147,12 @@ export function validateTopologySpecV5(spec, specPath = 'topology.spec.json') {
       if (delivery.originMode !== 'same-origin') {
         throw new Error(`${label} originMode must be same-origin`);
       }
-      if (delivery.apiSurfaceId !== 'application.public-ingress') {
-        throw new Error(`${label} apiSurfaceId must be application.public-ingress`);
+      const cloudApiSurface = delivery.apiSurfaceId === 'platform.api-gateway';
+      if (cloudApiSurface && !profileId.startsWith('cloud.')) {
+        throw new Error(`${label} apiSurfaceId platform.api-gateway is allowed only in cloud profiles`);
+      }
+      if (delivery.apiSurfaceId !== 'application.public-ingress' && !cloudApiSurface) {
+        throw new Error(`${label} apiSurfaceId must be application.public-ingress or platform.api-gateway`);
       }
       if (profileId === 'standalone.development'
         && delivery.deliveryMode !== 'dev-server-proxy') {

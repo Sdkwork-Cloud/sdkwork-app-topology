@@ -225,6 +225,31 @@ test('routes one browser origin by device class while keeping API paths on the a
   assert.equal(staleViteDependency.headers.vary, 'user-agent');
   assert.doesNotMatch(staleViteDependency.body, /<html/u);
 
+  // A Vite dependency cache URL is routed to the renderer that owns the cache
+  // label, regardless of the device-preferred renderer: the browser module
+  // graph may legitimately reference another renderer's cache (e.g. after a
+  // renderer restart or while the preferred renderer is unavailable), and
+  // hard-failing with 410 would leave the loaded page broken until reload.
+  const desktopH5Cache = await fetchText(
+    ingressOrigin,
+    '/node_modules/.vite/sdkwork-im-h5/deps/zustand.js?v=current',
+    DESKTOP_USER_AGENT,
+  );
+  assert.equal(
+    desktopH5Cache.body,
+    'h5:/node_modules/.vite/sdkwork-im-h5/deps/zustand.js?v=current',
+  );
+
+  const mobilePcCache = await fetchText(
+    ingressOrigin,
+    '/node_modules/.vite/sdkwork-im-pc/deps/react.js?v=current',
+    'iPhone Mobile',
+  );
+  assert.equal(
+    mobilePcCache.body,
+    'pc:/node_modules/.vite/sdkwork-im-pc/deps/react.js?v=current',
+  );
+
   const api = await fetchText(
     ingressOrigin,
     '/im/v3/api/realtime/ws?transport=polling',
