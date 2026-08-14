@@ -571,7 +571,7 @@ test('doctor validates manifest, source config, topology, workflow, and deploy c
   }, null, 2));
   fs.writeFileSync(path.join(repoRoot, 'sdkwork.workflow.json'), JSON.stringify({
     schemaVersion: '2026-06-06.sdkwork.workflow.v1',
-    app: { id: 'sdkwork-drive', repository: 'Sdkwork-Cloud/sdkwork-drive' },
+    app: { id: 'sdkwork-drive', repository: 'sdkwork-ai/sdkwork-drive' },
     release: { artifactPrefix: 'sdkwork-drive', defaultVersion: '1.0.0' },
     targets: [{
       id: 'linux-x64-standalone-server-tar-gz',
