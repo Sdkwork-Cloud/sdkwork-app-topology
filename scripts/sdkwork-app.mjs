@@ -10,10 +10,13 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   canonicalRepositoryRoot,
   createTopologyRuntime,
+  formatAccessEndpointCatalogLines,
   formatPrimaryAccessLines,
+  formatResolvedNetworkAccessLines,
   loadTopologySpec,
   reconcileManagedResources,
   removeRuntimeStateFile,
+  resolveAccessEndpointReports,
   resolveRepositoryRuntimeStateDirectory,
   resolveOwnedBindings,
   stopOwnedBindings,
@@ -247,6 +250,28 @@ function developmentAccessLines(plan, options = {}) {
   });
 }
 
+function developmentWebAccessLines(plan, options = {}) {
+  const prefix = options.prefix ?? '[sdkwork-app] ';
+  const reports = resolveAccessEndpointReports(plan, options);
+  const webEndpoint = reports.find(
+    (endpoint) => endpoint.kind === 'user-interface' && endpoint.primary,
+  );
+  if (!webEndpoint) {
+    return [];
+  }
+  const lines = formatResolvedNetworkAccessLines(webEndpoint, {
+    prefix: `${prefix}  `,
+    localLabel: 'Local',
+    networkLabel: 'Network',
+    unavailableText: options.unavailableText
+      ?? 'unavailable (listener is loopback-only or no LAN address was detected)',
+  });
+  if (lines.length === 0) {
+    return [];
+  }
+  return [`${prefix}Web Access URLs`, ...lines];
+}
+
 function findNearestApplicationRoot(startPath, repoRoot) {
   const boundary = path.resolve(repoRoot);
   let current = path.resolve(startPath);
@@ -464,7 +489,10 @@ async function runGenericDevelopment(repoRoot, runtime, plan, env, dryRun) {
       }));
     }
     refreshSession();
-    for (const line of developmentAccessLines(plan)) {
+    for (const line of developmentWebAccessLines(plan)) {
+      console.log(line);
+    }
+    for (const line of formatAccessEndpointCatalogLines(plan, { prefix: '[sdkwork-app] ' })) {
       console.log(line);
     }
     if (children.length === 0 && adaptiveHandles.length === 0) {
@@ -738,6 +766,7 @@ export {
   buildClientEnvironment,
   createWorkflowDeployArgs,
   developmentAccessLines,
+  developmentWebAccessLines,
   developmentSessionPath,
   frameworkCliPath,
   main,
