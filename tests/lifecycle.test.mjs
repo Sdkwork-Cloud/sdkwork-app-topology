@@ -15,10 +15,15 @@ import {
 } from '../tools/topology/lib/lifecycle.mjs';
 
 import {
+  applyLifecycleBootstrapAccessToken,
+  prepareLifecycleAccessTokenEnv,
+  loadWorkspaceBootstrapProfileEnv,
   buildClientEnvironment,
   createWorkflowDeployArgs,
   developmentAccessLines,
+  isUsableLifecycleAccessToken,
   readDevelopmentSession,
+  readLocalBootstrapAccessToken,
   developmentSessionPath,
   frameworkCliPath,
   main,
@@ -358,6 +363,67 @@ test('builds private per-application client environments without public token al
   assert.equal(h5Env.SDKWORK_ACCESS_TOKEN, 'configured-token');
   assert.equal(pcEnv.VITE_ACCESS_TOKEN, undefined);
   assert.equal(h5Env.VITE_ACCESS_TOKEN, undefined);
+});
+
+test('lifecycle start/build reuse a registered overlay token and reject remote fixture JWTs', async () => {
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'sdkwork-lifecycle-token-'));
+  const fixture = [
+    Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url'),
+    Buffer.from(JSON.stringify({ token_type: 'access' })).toString('base64url'),
+    'signature',
+  ].join('.');
+  fs.writeFileSync(path.join(repoRoot, 'package.json'), JSON.stringify({ name: 'demo-app' }));
+  fs.writeFileSync(path.join(repoRoot, 'sdkwork.app.config.json'), JSON.stringify({ app: { key: 'demo' } }));
+  fs.writeFileSync(path.join(repoRoot, '.sdkwork.local.env'), 'SDKWORK_ACCESS_TOKEN=signed-dev-token\r\n', 'utf8');
+
+  assert.equal(isUsableLifecycleAccessToken(fixture, 'http://api-dev.birdcoder.com'), false);
+  assert.equal(isUsableLifecycleAccessToken(fixture, 'http://127.0.0.1:8080'), true);
+  assert.equal(readLocalBootstrapAccessToken(repoRoot, 'development'), 'signed-dev-token');
+
+  const remote = await applyLifecycleBootstrapAccessToken(
+    repoRoot,
+    { SDKWORK_BACKEND_BASE_URL: 'http://api-dev.birdcoder.com', SDKWORK_ACCESS_TOKEN: fixture },
+    'development',
+    { tryApplicationBootstrap: false },
+  );
+  assert.equal(remote.SDKWORK_ACCESS_TOKEN, 'signed-dev-token');
+
+  const loopback = await applyLifecycleBootstrapAccessToken(
+    repoRoot,
+    { SDKWORK_BACKEND_BASE_URL: 'http://127.0.0.1:8080' },
+    'development',
+    { tryApplicationBootstrap: false },
+  );
+  assert.equal(loopback.SDKWORK_ACCESS_TOKEN, 'signed-dev-token');
+});
+
+test('workspace bootstrap profile fills blank backend URL without overriding process env', () => {
+  const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'sdkwork-workspace-profile-'));
+  const profileDir = path.join(workspaceRoot, 'configs', 'bootstrap', 'profiles');
+  fs.mkdirSync(profileDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(profileDir, 'dev.env'),
+    'SDKWORK_BACKEND_BASE_URL=http://127.0.0.1:8080\nSDKWORK_TENANT_ID=100001\n',
+    'utf8',
+  );
+  const loaded = loadWorkspaceBootstrapProfileEnv('development', workspaceRoot);
+  assert.equal(loaded.SDKWORK_BACKEND_BASE_URL, 'http://127.0.0.1:8080');
+  assert.equal(loaded.SDKWORK_TENANT_ID, '100001');
+});
+
+test('prepareLifecycleAccessTokenEnv keeps an explicit backend URL', async () => {
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'sdkwork-prepare-token-'));
+  fs.writeFileSync(path.join(repoRoot, 'package.json'), JSON.stringify({ name: 'demo-app' }));
+  fs.writeFileSync(path.join(repoRoot, 'sdkwork.app.config.json'), JSON.stringify({ app: { key: 'demo' } }));
+  fs.writeFileSync(path.join(repoRoot, '.sdkwork.local.env'), 'SDKWORK_ACCESS_TOKEN=signed-dev-token\n', 'utf8');
+  const env = await prepareLifecycleAccessTokenEnv(
+    repoRoot,
+    { SDKWORK_BACKEND_BASE_URL: 'http://api-dev.birdcoder.com' },
+    'development',
+    { tryApplicationBootstrap: false },
+  );
+  assert.equal(env.SDKWORK_BACKEND_BASE_URL, 'http://api-dev.birdcoder.com');
+  assert.equal(env.SDKWORK_ACCESS_TOKEN, 'signed-dev-token');
 });
 
 test('recognizes the CLI through a workspace directory link', () => {

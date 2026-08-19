@@ -339,21 +339,283 @@ function resolveClientApplicationRoot(repoRoot, entry) {
   return applicationRoot;
 }
 
+async function loadOptionalWorkspaceModule(applicationRoot, specifier) {
+  const roots = [applicationRoot, path.join(WORKSPACE_ROOT, 'sdkwork-iam')];
+  for (const root of roots) {
+    const packageJson = path.join(root, 'package.json');
+    if (!fs.existsSync(packageJson)) {
+      continue;
+    }
+    try {
+      const require = createRequire(packageJson);
+      const modulePath = require.resolve(specifier);
+      return await import(pathToFileURL(modulePath).href);
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
 async function loadCredentialEntryBootstrap(applicationRoot) {
-  const require = createRequire(path.join(applicationRoot, 'package.json'));
-  const modulePath = require.resolve('@sdkwork/iam-credential-entry/node-bootstrap');
-  return import(pathToFileURL(modulePath).href);
+  return loadOptionalWorkspaceModule(applicationRoot, '@sdkwork/iam-credential-entry/node-bootstrap');
+}
+
+async function loadApplicationBootstrap(applicationRoot) {
+  return loadOptionalWorkspaceModule(applicationRoot, '@sdkwork/iam-application-bootstrap');
+}
+
+function mapLifecycleToWorkspaceProfile(environment) {
+  if (environment === 'development' || environment === 'dev' || environment === 'local') {
+    return 'dev';
+  }
+  if (environment === 'production' || environment === 'prod') {
+    return 'production';
+  }
+  return environment;
+}
+
+function parseDotEnvAssignments(contents) {
+  const values = {};
+  for (const rawLine of String(contents ?? '').split(/\r?\n/u)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+    const separator = line.indexOf('=');
+    if (separator <= 0) continue;
+    const key = line.slice(0, separator).trim();
+    let value = line.slice(separator + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"'))
+      || (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    if (key && value) values[key] = value;
+  }
+  return values;
+}
+
+function applyBlankEnv(target, source = {}) {
+  for (const [key, value] of Object.entries(source)) {
+    const trimmed = String(value ?? '').trim();
+    if (!trimmed) continue;
+    if (!String(target[key] ?? '').trim()) {
+      target[key] = trimmed;
+    }
+  }
+  return target;
+}
+
+function loadWorkspaceBootstrapProfileEnv(environment, workspaceRoot = WORKSPACE_ROOT) {
+  const profile = mapLifecycleToWorkspaceProfile(environment);
+  const dirs = [
+    path.join(workspaceRoot, 'configs', 'bootstrap', 'profiles'),
+    path.join(workspaceRoot, 'etc', 'bootstrap', 'profiles'),
+  ];
+  const values = {};
+  for (const dir of dirs) {
+    let found = false;
+    for (const name of [`${profile}.env`, `${profile}.local.env`]) {
+      const filePath = path.join(dir, name);
+      if (!fs.existsSync(filePath)) continue;
+      Object.assign(values, parseDotEnvAssignments(fs.readFileSync(filePath, 'utf8')));
+      found = true;
+    }
+    if (found) break;
+  }
+  return values;
+}
+
+async function applyHomeBootstrapAuth(env, environment) {
+  const bootstrap = await loadApplicationBootstrap(path.join(WORKSPACE_ROOT, 'sdkwork-iam'));
+  if (typeof bootstrap?.loadBootstrapAuthProfileFromHome !== 'function') {
+    return env;
+  }
+  const loaded = await bootstrap.loadBootstrapAuthProfileFromHome({
+    env,
+    lifecycleEnvironment: mapLifecycleToWorkspaceProfile(environment) === 'dev'
+      ? 'development'
+      : environment === 'prod'
+        ? 'production'
+        : environment,
+  });
+  const username = String(
+    loaded?.profile?.username ?? loaded?.profile?.email ?? loaded?.profile?.account ?? '',
+  ).trim();
+  const password = String(loaded?.profile?.password ?? '').trim();
+  if (!username || !password) return env;
+  if (!String(
+    env.SDKWORK_IAM_BOOTSTRAP_OPERATOR_USERNAME
+    ?? env.SDKWORK_IAM_BOOTSTRAP_USERNAME
+    ?? env.SDKWORK_IAM_SUPER_ADMIN_USERNAME
+    ?? '',
+  ).trim()) {
+    env.SDKWORK_IAM_BOOTSTRAP_OPERATOR_USERNAME = username;
+  }
+  if (!String(
+    env.SDKWORK_IAM_BOOTSTRAP_OPERATOR_PASSWORD
+    ?? env.SDKWORK_IAM_BOOTSTRAP_PASSWORD
+    ?? env.SDKWORK_IAM_SUPER_ADMIN_PASSWORD
+    ?? '',
+  ).trim()) {
+    env.SDKWORK_IAM_BOOTSTRAP_OPERATOR_PASSWORD = password;
+  }
+  return env;
+}
+
+/**
+ * Start/build env: fill blank workspace bootstrap profile keys and home
+ * operator credentials, then ensure `SDKWORK_ACCESS_TOKEN`.
+ */
+async function prepareLifecycleAccessTokenEnv(repoRoot, env, environment, extra = {}) {
+  const merged = { ...env };
+  applyBlankEnv(merged, loadWorkspaceBootstrapProfileEnv(environment));
+  await applyHomeBootstrapAuth(merged, environment);
+  return applyLifecycleBootstrapAccessToken(repoRoot, merged, environment, extra);
+}
+
+function looksLikeLocalFixtureJwt(token) {
+  const [headerPart, , signaturePart, ...rest] = String(token ?? '').split('.');
+  if (headerPart === undefined || signaturePart === undefined || rest.length > 0) {
+    return false;
+  }
+  if (signaturePart !== 'signature') {
+    return false;
+  }
+  try {
+    const header = JSON.parse(Buffer.from(headerPart, 'base64url').toString('utf8'));
+    return header.alg === 'none';
+  } catch {
+    return false;
+  }
+}
+
+function isLoopbackBackendUrl(url) {
+  const trimmed = String(url ?? '').trim();
+  if (!trimmed) {
+    return false;
+  }
+  try {
+    const hostname = new URL(trimmed).hostname.toLowerCase();
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+  } catch {
+    return false;
+  }
+}
+
+function isUsableLifecycleAccessToken(token, backendBaseUrl) {
+  const trimmed = String(token ?? '').trim();
+  if (!trimmed) {
+    return false;
+  }
+  if (!looksLikeLocalFixtureJwt(trimmed)) {
+    return true;
+  }
+  return isLoopbackBackendUrl(backendBaseUrl);
+}
+
+function readLocalBootstrapAccessToken(repoRoot, environment) {
+  const lifecycle = environment === 'dev'
+    ? 'development'
+    : environment === 'prod'
+      ? 'production'
+      : environment;
+  const candidates = [
+    path.join(repoRoot, '.sdkwork.local.env'),
+    path.join(repoRoot, `.env.standalone.${lifecycle}.bootstrap.local`),
+    path.join(repoRoot, `.env.${lifecycle}.bootstrap.local`),
+  ];
+  for (const filePath of candidates) {
+    if (!fs.existsSync(filePath)) continue;
+    for (const line of fs.readFileSync(filePath, 'utf8').split(/\r?\n/u)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const separatorIndex = trimmed.indexOf('=');
+      if (separatorIndex <= 0) continue;
+      if (trimmed.slice(0, separatorIndex).trim() !== 'SDKWORK_ACCESS_TOKEN') continue;
+      let value = trimmed.slice(separatorIndex + 1).trim();
+      if (
+        (value.startsWith('"') && value.endsWith('"'))
+        || (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1);
+      }
+      if (value) return value;
+    }
+  }
+  return undefined;
+}
+
+async function tryEnsureRegisteredBootstrapToken(repoRoot, env, environment) {
+  const bootstrap = await loadApplicationBootstrap(repoRoot);
+  if (typeof bootstrap?.ensureRepoBootstrapAccessToken !== 'function') {
+    return null;
+  }
+  return bootstrap.ensureRepoBootstrapAccessToken({
+    env,
+    environment,
+    repoRoot,
+    tryApplicationBootstrap: true,
+    warn: (line) => process.stderr.write(`[sdkwork-app] ${line}\n`),
+  });
+}
+
+async function applyLifecycleBootstrapAccessToken(repoRoot, env, environment, extra = {}) {
+  const merged = { ...env };
+  const backendBaseUrl = String(merged.SDKWORK_BACKEND_BASE_URL ?? '').trim();
+  if (!isUsableLifecycleAccessToken(merged.SDKWORK_ACCESS_TOKEN, backendBaseUrl)) {
+    const fromFiles = readLocalBootstrapAccessToken(repoRoot, environment);
+    if (isUsableLifecycleAccessToken(fromFiles, backendBaseUrl)) {
+      merged.SDKWORK_ACCESS_TOKEN = fromFiles;
+    } else if (merged.SDKWORK_ACCESS_TOKEN && looksLikeLocalFixtureJwt(merged.SDKWORK_ACCESS_TOKEN)) {
+      delete merged.SDKWORK_ACCESS_TOKEN;
+    }
+  }
+
+  if (
+    extra.tryApplicationBootstrap !== false
+    && backendBaseUrl
+    && !isUsableLifecycleAccessToken(merged.SDKWORK_ACCESS_TOKEN, backendBaseUrl)
+  ) {
+    const ensured = await tryEnsureRegisteredBootstrapToken(repoRoot, merged, environment);
+    if (isUsableLifecycleAccessToken(ensured?.token, backendBaseUrl)) {
+      merged.SDKWORK_ACCESS_TOKEN = ensured.token;
+      return merged;
+    }
+  }
+
+  if (isUsableLifecycleAccessToken(merged.SDKWORK_ACCESS_TOKEN, backendBaseUrl)) {
+    return merged;
+  }
+
+  const credentialEntry = await loadCredentialEntryBootstrap(repoRoot);
+  if (credentialEntry?.mergeRepoBootstrapAccessTokenEnv) {
+    const next = credentialEntry.mergeRepoBootstrapAccessTokenEnv({
+      repoRoot,
+      env: merged,
+      environment,
+      ...extra,
+    });
+    const nextBackend = String(next.SDKWORK_BACKEND_BASE_URL ?? backendBaseUrl).trim();
+    if (isUsableLifecycleAccessToken(next.SDKWORK_ACCESS_TOKEN, nextBackend)) {
+      return next;
+    }
+    if (next.SDKWORK_ACCESS_TOKEN && looksLikeLocalFixtureJwt(next.SDKWORK_ACCESS_TOKEN)) {
+      delete next.SDKWORK_ACCESS_TOKEN;
+    }
+    return next;
+  }
+  return merged;
 }
 
 async function buildClientEnvironment(repoRoot, entry, env, plan) {
   const applicationRoot = resolveClientApplicationRoot(repoRoot, entry);
-  const { mergeRepoBootstrapAccessTokenEnv } = await loadCredentialEntryBootstrap(applicationRoot);
-  return mergeRepoBootstrapAccessTokenEnv({
-    repoRoot: applicationRoot,
-    env: { ...env, ...(entry.env ?? {}) },
-    environment: plan.environment,
-    runtimeTarget: plan.runtimeTarget,
-  });
+  return applyLifecycleBootstrapAccessToken(
+    applicationRoot,
+    { ...env, ...(entry.env ?? {}) },
+    plan.environment,
+    { runtimeTarget: plan.runtimeTarget },
+  );
 }
 
 async function runGenericDevelopment(repoRoot, runtime, plan, env, dryRun) {
@@ -560,7 +822,8 @@ async function runDevelopment(repoRoot, packageManifest, args) {
   const plan = runtime.resolvePlan(`${deploymentProfile}.${environment}`, runtimeTarget, clientArchitecture);
   if (plan.forbiddenProcesses.length > 0) throw new Error(`forbidden local processes: ${plan.forbiddenProcesses.join(', ')}`);
   const regionEnv = resolveRegionEnv(repoRoot, runtime, args);
-  const env = runtime.applyProfileEnv(plan.activeProfile, [process.env, runtime.loadProfile(plan.activeProfile), regionEnv]);
+  const profileEnv = runtime.applyProfileEnv(plan.activeProfile, [process.env, runtime.loadProfile(plan.activeProfile), regionEnv]);
+  const env = await prepareLifecycleAccessTokenEnv(repoRoot, profileEnv, environment);
   console.log(`[sdkwork-app] ${plan.appId} ${plan.activeProfile} runtimeTarget=${runtimeTarget} clientArchitecture=${plan.clientArchitecture ?? 'none'}`);
   const privateScript = privateLifecycleScript('dev', deploymentProfile);
   if (packageManifest.scripts?.[privateScript] && !dryRun) {
@@ -728,10 +991,15 @@ async function main(argv = process.argv.slice(2)) {
   }
   if (['build', 'test', 'check', 'verify', 'clean'].includes(command)) {
     const script = privateLifecycleScript(command);
-    const regionEnv = resolveRegionEnv(repoRoot, loadRuntime(repoRoot), forwarded);
-    const result = await runPrivateLifecycleScript(repoRoot, packageManifest, script, forwarded, {
-      env: { ...process.env, ...regionEnv },
-    });
+    const environment = option(forwarded, '--environment', 'development');
+    const runtime = loadRuntime(repoRoot);
+    const regionEnv = resolveRegionEnv(repoRoot, runtime, forwarded);
+    const env = await prepareLifecycleAccessTokenEnv(
+      repoRoot,
+      { ...process.env, ...regionEnv },
+      environment,
+    );
+    const result = await runPrivateLifecycleScript(repoRoot, packageManifest, script, forwarded, { env });
     if (!result) throw new Error(`missing private lifecycle hook ${script}`);
     if (result.code !== 0) throw new Error(`${script} exited with code ${result.code}`);
     return;
@@ -763,15 +1031,20 @@ if (invokedPath && sameModulePath(invokedPath, fileURLToPath(import.meta.url))) 
 }
 
 export {
+  applyLifecycleBootstrapAccessToken,
+  prepareLifecycleAccessTokenEnv,
+  loadWorkspaceBootstrapProfileEnv,
   buildClientEnvironment,
   createWorkflowDeployArgs,
   developmentAccessLines,
   developmentWebAccessLines,
   developmentSessionPath,
   frameworkCliPath,
+  isUsableLifecycleAccessToken,
   main,
   passthroughArgs,
   readDevelopmentSession,
+  readLocalBootstrapAccessToken,
   removeDevelopmentSession,
   runGenericDevelopment,
   resolveClientApplicationRoot,
