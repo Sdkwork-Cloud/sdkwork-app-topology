@@ -38,8 +38,11 @@ export function validateTopologySpecV5(spec, specPath = 'topology.spec.json') {
   if (spec.schemaVersion !== 5) throw new Error(`${specPath} schemaVersion must be 5`);
   if (spec.kind !== 'sdkwork.app.topology') throw new Error(`${specPath} kind must be sdkwork.app.topology`);
   if (!/^sdkwork-[a-z0-9-]+$/u.test(spec.appId ?? '')) throw new Error(`${specPath} appId must use sdkwork-<application-code>`);
-  if (!/^[a-z0-9]+(?:_[a-z0-9]+)*$/u.test(spec.applicationCode ?? '')) {
-    throw new Error(`${specPath} applicationCode must be a lowercase kebab-free runtime directory code`);
+  if (!/^[a-z0-9]+(?:[-_][a-z0-9]+)*$/u.test(spec.applicationCode ?? '')) {
+    throw new Error(
+      `${specPath} applicationCode must be lowercase kebab-case (runtime directory code, e.g. api-gateway); ` +
+      'legacy snake_case (e.g. api_gateway) is tolerated during migration only',
+    );
   }
   const profiles = spec.vocabulary?.deploymentProfile?.allowed;
   if (!Array.isArray(profiles) || profiles.length !== 2

@@ -183,12 +183,15 @@ async function initApp(args) {
   }
 
   const appCode = appId.replace(/^sdkwork-/, '');
+  // Environment-variable prefixes stay snake_case/upper (env convention);
+  // applicationCode is the lowercase kebab-case runtime directory code
+  // (APPLICATION_DEPLOY_LAYOUT_SPEC §3).
   const applicationEnvPrefix = `SDKWORK_${appCode.replace(/-/g, '_').toUpperCase()}`;
   const spec = validateTopologySpec({
     schemaVersion: 5,
     kind: 'sdkwork.app.topology',
     appId,
-    applicationCode: appCode.replace(/-/g, '_'),
+    applicationCode: appCode,
     archetype: 'application-http-gateway',
     profileRoot: 'etc/topology',
     profilePattern: '{deploymentProfile}.{environment}.env',
