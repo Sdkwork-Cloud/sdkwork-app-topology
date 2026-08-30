@@ -80,7 +80,7 @@
           "environments": {
             "type": "object",
             "patternProperties": {
-              "^(development|test|staging|production)$": {
+              "^(development|test|staging|production|demo)$": {
                 "type": "object",
                 "properties": {
                   "httpHost": { "type": "string", "pattern": "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\\.(?:com|net|org|dev|io|cn|example|internal)$" },
