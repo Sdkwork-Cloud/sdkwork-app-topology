@@ -119,3 +119,73 @@ Request human review before changing the public vocabulary (`topology`, `profile
 - [docs/product/prd/PRD.md](docs/product/prd/PRD.md)
 - [docs/architecture/tech/TECH_ARCHITECTURE.md](docs/architecture/tech/TECH_ARCHITECTURE.md)
 
+<!-- SDKWORK-NAMING-STANDARD: v1 -->
+## Rust Naming And Dependency Declaration
+
+Authority: `../sdkwork-specs/NAMING_SPEC.md` section 3.1 and section 3.2.
+
+Two identifier planes exist in every Rust crate and they MUST NOT be mixed: the package plane
+(Cargo, filesystem, lock file) uses kebab-case, and the crate plane (lib target, modules, source
+imports) uses snake_case.
+
+- `[package].name`, the crate directory, `[features]` keys, and `[[bin]].name` use kebab-case.
+- `[lib].name`, module files, module directories, and Rust imports use snake_case.
+- A crate whose `[package].name` contains a hyphen SHOULD declare `[lib].name` explicitly
+  (default: package name with every `-` replaced by `_`). A shorter lib name is allowed only
+  when declared explicitly and used consistently by every consumer.
+- Cargo dependency keys, `[workspace.dependencies]` keys, and `Cargo.lock` entries use the
+  dependency package name. Use `package = "..."` when an alias is required.
+- Every external crate referenced by `src/` MUST be declared in that crate's `[dependencies]`.
+  Test-only crates belong in `[dev-dependencies]`; `build.rs` crates belong in
+  `[build-dependencies]`.
+- Never delete a dependency line, and never demote one from `[dependencies]` to
+  `[dev-dependencies]`, while `src/` still imports it. Verify manifest cleanups with the
+  command below before committing them.
+- Regenerate and commit `Cargo.lock` in the same change as any dependency table edit.
+
+Verification:
+
+```bash
+node ../sdkwork-specs/tools/check-rust-crate-naming-standard.mjs --root .
+```
+<!-- /SDKWORK-NAMING-STANDARD: v1 -->
+
+<!-- SDKWORK-PNPM-WORKSPACE-STANDARD: v1 -->
+## pnpm Workspace Dependency And Package Import
+
+Authority: `../sdkwork-specs/PNPM_WORKSPACE_DEPENDENCY_SPEC.md` (companion to
+`../sdkwork-specs/DEPENDENCY_MANAGEMENT_SPEC.md`).
+
+Sibling SDKWork repositories are consumed through a dual-track model that MUST stay consistent:
+
+- **Local development** (`pnpm dev`, `pnpm build`): pnpm workspace protocol. Each sibling
+  package is declared ONCE in this repository root `pnpm-workspace.yaml` `packages:` as a
+  `../sdkwork-*` relative path, and consumed with `workspace:*` in `package.json`. Never use
+  `file:`/`link:`/git-URL specifiers for SDKWork sibling packages in any environment.
+- **CI / release packaging**: git-repository dependency checkout. Every sibling referenced by the
+  local workspace MUST have a matching `dependencies[]` entry in `sdkwork.workflow.json` so CI
+  clones the sibling into the same `../sdkwork-*` relative layout (`GITHUB_WORKFLOW_SPEC.md`).
+  `package.json` is never rewritten for CI.
+
+Import rules for sibling SDKWork packages:
+
+- Import by package name only: `import { X } from "@sdkwork/package-name"`. The specifier MUST
+  equal the target package's `package.json` `name` exactly - no shortening, renaming, or alias.
+- Forbidden: relative imports that cross a package boundary into another SDKWork repository or
+  another workspace package's `src/` (for example `import ... from "../../sdkwork-appbase/.../src/..."`).
+- Consume only the public `exports` surface of a package; never deep-import sibling `src/` internals.
+- Every non-relative import in a workspace member MUST resolve to that member's own
+  `dependencies`/`devDependencies`/`peerDependencies` (import closure).
+- Vite aliases MUST NOT rename or redirect `@sdkwork/*` packages, MUST NOT be added to make a
+  resolution error pass, and are allowed only for documented bootstrap/SDK-generation entrypoints.
+- Fix a resolution failure by correcting the workspace declaration or the package `exports`,
+  not by adding an alias.
+
+Verification:
+
+```bash
+node ../sdkwork-specs/tools/verify-repo.mjs --root .
+node ../sdkwork-specs/tools/check-workspace-member-protocol.mjs --root .
+node ../sdkwork-specs/tools/check-dependency-list-completeness.mjs --target <repo-name>
+```
+<!-- /SDKWORK-PNPM-WORKSPACE-STANDARD: v1 -->
