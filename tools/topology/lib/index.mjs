@@ -17,6 +17,11 @@ export {
 } from './runtime.mjs';
 
 export {
+  applyDevelopmentLocalGatewayBinding,
+  LOCAL_PLATFORM_API_GATEWAY_HTTP_URL_KEY,
+} from './dev-gateway-binding.mjs';
+
+export {
   PUBLIC_LIFECYCLE_COMMANDS,
   loadPackageManifest,
   privateLifecycleScript,

@@ -102,7 +102,7 @@ Applications such as `sdkwork-drive` depend on this repository through:
 
 ```bash
 pnpm test
-pnpm run validate:example
+pnpm run _sdkwork:runtime:topology:validate-example
 ```
 
 ## Task-Specific Standards

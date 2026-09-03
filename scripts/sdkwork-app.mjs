@@ -13,6 +13,7 @@ import {
   formatAccessEndpointCatalogLines,
   formatPrimaryAccessLines,
   formatResolvedNetworkAccessLines,
+  applyDevelopmentLocalGatewayBinding,
   loadTopologySpec,
   reconcileManagedResources,
   removeRuntimeStateFile,
@@ -823,7 +824,12 @@ async function runDevelopment(repoRoot, packageManifest, args) {
   if (plan.forbiddenProcesses.length > 0) throw new Error(`forbidden local processes: ${plan.forbiddenProcesses.join(', ')}`);
   const regionEnv = resolveRegionEnv(repoRoot, runtime, args);
   const profileEnv = runtime.applyProfileEnv(plan.activeProfile, [process.env, runtime.loadProfile(plan.activeProfile), regionEnv]);
-  const env = await prepareLifecycleAccessTokenEnv(repoRoot, profileEnv, environment);
+  // PNPM_SCRIPT_SPEC §3: cloud-mode development binds gateway-anchored base
+  // URLs to the locally started sdkwork-api-cloud-gateway (ip:port) so
+  // `pnpm dev:cloud` quick-starts and debugs against the local process. Domain
+  // edges remain authoritative for cloud-mode builds and deployed services.
+  const devProfileEnv = applyDevelopmentLocalGatewayBinding(profileEnv, { profileId: plan.activeProfile });
+  const env = await prepareLifecycleAccessTokenEnv(repoRoot, devProfileEnv, environment);
   console.log(`[sdkwork-app] ${plan.appId} ${plan.activeProfile} runtimeTarget=${runtimeTarget} clientArchitecture=${plan.clientArchitecture ?? 'none'}`);
   const privateScript = privateLifecycleScript('dev', deploymentProfile);
   if (packageManifest.scripts?.[privateScript] && !dryRun) {
