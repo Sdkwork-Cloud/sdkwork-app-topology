@@ -186,6 +186,19 @@ export function createTopologyRuntimeV2(spec, repoRoot) {
 
   function resolveGatewayBaseUrl(env, deploymentProfile) {
     const normalizedDeploymentProfile = assertDeploymentProfile(deploymentProfile);
+    // APP_RUNTIME_TOPOLOGY_SPEC section 4.2: dev:cloud binds the local
+    // platform gateway (ip:port). Private dev scripts resolve the gateway
+    // through this shared helper, so the binding must live here too.
+    const localGateway = normalizeText(env.SDKWORK_LOCAL_PLATFORM_API_GATEWAY_HTTP_URL);
+    const gatewayEnvironment = normalizeText(env.SDKWORK_ENVIRONMENT)
+      || normalizeText(env.SDKWORK_APP_ENVIRONMENT);
+    if (
+      normalizedDeploymentProfile === 'cloud'
+      && gatewayEnvironment === 'development'
+      && /^(?:https?|wss?):\/\//u.test(localGateway)
+    ) {
+      return localGateway.replace(/\/+$/u, '');
+    }
     if (toGatewayTopology(normalizedDeploymentProfile) === 'standalone') {
       const applicationUrl = surfaces.resolveSurfaceHttpUrl(env, 'application.public-ingress');
       if (applicationUrl) {
