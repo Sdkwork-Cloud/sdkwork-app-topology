@@ -19,6 +19,7 @@ export {
 export {
   applyDevelopmentLocalGatewayBinding,
   LOCAL_PLATFORM_API_GATEWAY_HTTP_URL_KEY,
+  BROWSER_LOCAL_PLATFORM_API_GATEWAY_HTTP_URL_KEY,
 } from './dev-gateway-binding.mjs';
 
 export {

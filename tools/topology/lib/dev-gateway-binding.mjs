@@ -25,6 +25,8 @@ import { parseProfileId } from './profile-id.mjs';
  * URL paths and query strings are preserved; only the scheme+host is swapped.
  */
 export const LOCAL_PLATFORM_API_GATEWAY_HTTP_URL_KEY = 'SDKWORK_LOCAL_PLATFORM_API_GATEWAY_HTTP_URL';
+export const BROWSER_LOCAL_PLATFORM_API_GATEWAY_HTTP_URL_KEY =
+  'VITE_SDKWORK_LOCAL_PLATFORM_API_GATEWAY_HTTP_URL';
 
 const PLATFORM_API_GATEWAY_URL_KEY_PATTERN = /(?:^|_)PLATFORM_API_GATEWAY_HTTP_URL$/u;
 const REWRITABLE_URL_VALUE_PATTERN = /^(?:https?|wss?):\/\//iu;
@@ -79,6 +81,12 @@ export function applyDevelopmentLocalGatewayBinding(env, { profileId } = {}) {
   if (!gatewayHost) {
     return values;
   }
+
+  // Browser-visible anchor (APP_RUNTIME_TOPOLOGY_SPEC §4.2, SDK_SPEC §5.1
+  // step 2): Vite exposes VITE_-prefixed process env to import.meta.env, so
+  // frontend SDK integrations can read the local gateway before falling back
+  // to any checked-in environment domain.
+  values[BROWSER_LOCAL_PLATFORM_API_GATEWAY_HTTP_URL_KEY] = localGatewayUrl;
 
   for (const [key, rawValue] of Object.entries(values)) {
     const value = String(rawValue ?? '').trim();
