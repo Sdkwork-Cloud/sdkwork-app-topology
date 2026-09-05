@@ -824,11 +824,22 @@ async function runDevelopment(repoRoot, packageManifest, args) {
   if (plan.forbiddenProcesses.length > 0) throw new Error(`forbidden local processes: ${plan.forbiddenProcesses.join(', ')}`);
   const regionEnv = resolveRegionEnv(repoRoot, runtime, args);
   const profileEnv = runtime.applyProfileEnv(plan.activeProfile, [process.env, runtime.loadProfile(plan.activeProfile), regionEnv]);
+  // Local API/worker processes require PostgreSQL credentials from `.env.postgres`
+  // (SDKWORK_DATABASE_URL synthesized via resolveIamDevEnv). Cloud client-only
+  // profiles do not start those processes and skip the postgres merge.
+  const needsLocalDatabase = (plan.localProcesses ?? []).some((entry) => (
+    entry.role === 'api-standalone-gateway'
+    || entry.role === 'worker'
+    || entry.role === 'database'
+  ));
+  const databaseAwareProfileEnv = needsLocalDatabase
+    ? runtime.resolveIamDevEnv(profileEnv)
+    : profileEnv;
   // PNPM_SCRIPT_SPEC §3: cloud-mode development binds gateway-anchored base
   // URLs to the locally started sdkwork-api-cloud-gateway (ip:port) so
   // `pnpm dev:cloud` quick-starts and debugs against the local process. Domain
   // edges remain authoritative for cloud-mode builds and deployed services.
-  const devProfileEnv = applyDevelopmentLocalGatewayBinding(profileEnv, { profileId: plan.activeProfile });
+  const devProfileEnv = applyDevelopmentLocalGatewayBinding(databaseAwareProfileEnv, { profileId: plan.activeProfile });
   const env = await prepareLifecycleAccessTokenEnv(repoRoot, devProfileEnv, environment);
   console.log(`[sdkwork-app] ${plan.appId} ${plan.activeProfile} runtimeTarget=${runtimeTarget} clientArchitecture=${plan.clientArchitecture ?? 'none'}`);
   const privateScript = privateLifecycleScript('dev', deploymentProfile);
